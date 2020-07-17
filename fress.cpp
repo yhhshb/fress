@@ -16,7 +16,7 @@ void print_subcommands()
 void print_histogram_help()
 {
 	fprintf(stderr, "histogram options:\n");
-	fprintf(stderr, "i\tinput kmc database (without extentions)\n");
+	fprintf(stderr, "i\tinput kmc database (without extensions)\n");
 	fprintf(stderr, "o\toutput file. A two-column tsv file where the first column contains the frequencies and the second column the total number of k-mers having that frequency\n");
 	fprintf(stderr, "h\tshows this help\n");
 }
@@ -24,7 +24,7 @@ void print_histogram_help()
 void print_sense_help()
 {
 	fprintf(stderr, "sense options:\n");
-	fprintf(stderr, "i\tinput kmc database (without extentions)\n");
+	fprintf(stderr, "i\tinput kmc database (without extensions)\n");
 	fprintf(stderr, "o\toutput probabilistic map containing the frequencies\n");
 	fprintf(stderr, "s\tinput histogram generated from the input kmc database using the <histogram> subcommand\n");
 	fprintf(stderr, "r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
@@ -36,8 +36,8 @@ void print_sense_help()
 void print_check_help()
 {
 	fprintf(stderr, "check options:\n");
-	fprintf(stderr, "i\tinput kmc database (without extentions)\n");
-	fprintf(stderr, "d\tinput map built from the input kmc database (without extentions)\n");
+	fprintf(stderr, "i\tinput kmc database (without extensions)\n");
+	fprintf(stderr, "d\tinput map built from the input kmc database (without extensions)\n");
 	fprintf(stderr, "h\tshows this help\n");
 	fprintf(stderr, "\nThe output is on stdout and are all k-mers for which the predicted frequency is wrong or there are multiple frequencies\n");
 	fprintf(stderr, "Each k-mer will have its true frequency and the (wrong) intersection of frequencies\n");
@@ -61,11 +61,11 @@ int histogram_main(int argc, char* argv[])
 			output_filename = opt.arg;
 		} else if (c == 'h') {
 			print_histogram_help();
-			return 0;
+			return EXIT_SUCCESS;
 		} else {
 			fprintf(stderr, "Option (%c) not available\n", c);
 			print_histogram_help();
-			return 1;
+			return EXIT_FAILURE;
 		}
 	}
 	auto histo = compute_histogram(kmc_filename);
@@ -75,7 +75,7 @@ int histogram_main(int argc, char* argv[])
 		hf << it->first << "\t" << it->second << "\n";
 	}
 	hf.close();
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 int sense_main(int argc, char* argv[])
@@ -107,11 +107,11 @@ int sense_main(int argc, char* argv[])
 			delta = std::stod(opt.arg);
 		} else if (c == 'h') {
 			print_sense_help();
-			return 0;
+			return EXIT_SUCCESS;
 		} else {
 			fprintf(stderr, "Option (%c) not available\n", c);
 			print_sense_help();
-			return 1;
+			return EXIT_FAILURE;
 		}
 	}
 
@@ -155,7 +155,7 @@ int sense_main(int argc, char* argv[])
 	skdump.write(reinterpret_cast<char*>(to_be_stored.data()), to_be_stored.size() * sizeof(decltype(to_be_stored)::value_type));
 	skdump.close();
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 int check_main(int argc, char* argv[])
@@ -175,11 +175,11 @@ int check_main(int argc, char* argv[])
 			map_filename = opt.arg;
 		} else if (c == 'h') {
 			print_check_help();
-			return 0;
+			return EXIT_SUCCESS;
 		} else {
 			fprintf(stderr, "Option (%c) not available\n", c);
 			print_check_help();
-			return 1;
+			return EXIT_FAILURE;
 		}
 	}
 
@@ -205,7 +205,7 @@ int check_main(int argc, char* argv[])
 	}
 	skdump.close();
 	check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets);
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 int main(int argc, char* argv[])
@@ -216,7 +216,7 @@ int main(int argc, char* argv[])
 	if (om.ind == argc) {
 		fprintf(stderr, "[Error] Subcommand unavailable\n\n");
 		print_subcommands();
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	if (std::strcmp(argv[om.ind], "histogram") == 0) {
@@ -229,5 +229,5 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Missing subcommand\n\n");
 		print_subcommands();
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }

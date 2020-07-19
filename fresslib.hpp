@@ -25,7 +25,7 @@ std::string set2str(const SetType& aSet)
 };
 
 template <typename T>
-std::vector<T> str2set(const std::string& setstr, char sep) //TODO make it a template in a hpp file.
+std::vector<T> str2set(const std::string& setstr, char sep)
 {
 	std::vector<T> bucket;
 	std::stringstream ss(setstr);

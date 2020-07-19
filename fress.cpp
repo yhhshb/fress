@@ -122,6 +122,7 @@ int sense_main(int argc, char* argv[])
 		if(nrows == 0) nrows = log(sch.size() / delta); //FIXME find good dimensioning of the rows
 		if(ncolumns == 0) ncolumns = static_cast<std::size_t>(sch[1].second); //FIXME is this the best number of columns?
 	}
+	//FIXME directly use an enumeration of the sets. Keep a hash table to store the sets and insert a new set when it is not found. 
 	sketch_t sketch(nrows * ncolumns);
 	uint32_t heavy_element_to_exclude = 0;
 	if (sch.size() != 0) heavy_element_to_exclude = sch[0].first; //If we know the histogram then skip the heavy hitter to reduce space in the buckets

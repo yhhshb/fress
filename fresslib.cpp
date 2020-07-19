@@ -108,7 +108,7 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	if (!kmcdb.OpenForListing(kmc_filename)) {
 		throw std::runtime_error("Unable to open the database\n");
 	}
-	
+
 	unsigned int _kmer_length;
 	unsigned int _mode;
 	unsigned int _counter_size;
@@ -139,16 +139,15 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 				intersection = dummy;
 			}
 		}
-		
-		//bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
-		//bool wrong_value = intersection.size() == 1 and counter != intersection[0];
-		//bool unsolved_collisions = intersection.size() > 1;
-		if(intersection.size() > 0 and counter != intersection.back())
+		bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
+		bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
+		bool unsolved_collisions = intersection.size() > 1;
+		if(wrong_value or unsolved_collisions)
+		//if(intersection.size() > 0 and counter != intersection.back()) //FIXME use the min(histo[intersection]) for selecting the right probability
 		{
 			std::cout << str_kmer << ", " << counter << ", " << intersection << "\n";
 		}
 	}
 	std::cout << std::endl;
 	kmcdb.Close();
-
 }

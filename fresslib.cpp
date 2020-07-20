@@ -123,9 +123,10 @@ void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t 
 	}//End
 
 	//There might be some unused combinations in the combinations vector, te following code is used to remove them
-	str_combinations.clear();
-	for(auto idx : sketch) str_combinations.push_back(dsc[idx]);
-	std::sort(str_combinations.begin(), str_combinations.end());
+	std::set<std::string> str_set_combos;
+	for(auto idx : sketch) str_set_combos.insert(dsc[idx]);
+	str_combinations = std::vector<std::string>();
+	std::copy(str_set_combos.cbegin(), str_set_combos.cend(), std::back_inserter(str_combinations));
 	for(uint32_t i = 0; i < str_combinations.size(); ++i) set_index[str_combinations[i]] = i;
 	for(auto& idx : sketch) idx = set_index[dsc[idx]];
 }

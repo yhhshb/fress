@@ -57,7 +57,7 @@ std::vector<std::pair<uint32_t, std::size_t>> sort_histogram(const std::map<uint
 	return sorted_columns;
 }
 
-void fill_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, sketch_t& sketch, uint32_t heavy_element)
+void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, std::vector<std::string>& str_combinations, std::vector<uint32_t>& sketch, uint32_t heavy_element)
 {
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
@@ -81,25 +81,53 @@ void fill_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolum
 	char str_kmer[_kmer_length + 1];
 	uint64_t hashes[nrows];
 
+	
+	std::map<std::string, uint32_t> set_index;
+	set_index.emplace("", 0);
+	std::vector<std::string> dsc;
+	{//Begin
+	std::vector<std::vector<uint32_t>> combinations;
+	combinations.push_back(std::vector<uint32_t>(0));
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		if (heavy_element != counter)
 		{
-			//fprintf(stderr, "found a low-hitter\n");
 			kmer.to_string(str_kmer);
 			NTM64(str_kmer, _kmer_length, nrows, hashes);
-			//fprintf(stderr, "hashes computed\n");
 			for(std::size_t i = 0; i < nrows; ++i)
 			{
 				std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
-				//fprintf(stderr, "row %lu -> bucket %lu\n", i, bucket_index);
-				auto& bucket = sketch[bucket_index];
-				if(std::find(bucket.cbegin(), bucket.cend(), counter) == bucket.cend()) bucket.push_back(counter); //.insert(counter);
-				//fprintf(stderr, "insertion done\n");
+				const auto& vset = combinations[sketch[bucket_index]];
+				if(std::find(vset.cbegin(), vset.cend(), counter) == vset.cend())
+				{
+					auto key = vset;
+					key.insert(std::upper_bound(key.begin(), key.end(), counter), counter);
+					auto skey = set2str(key);
+					const auto invkey_it = set_index.find(skey);
+					if(invkey_it != set_index.cend())
+					{
+						sketch[bucket_index] = invkey_it->second;
+					}
+					else
+					{
+						combinations.push_back(key);
+						set_index.emplace(skey, combinations.size() - 1);
+						sketch[bucket_index] = combinations.size() - 1;
+					}
+				}
 			}
 		}
 	}
 	kmcdb.Close();
+	for(const auto& combo : combinations) dsc.push_back(set2str(combo));
+	}//End
+
+	//There might be some unused combinations in the combinations vector, te following code is used to remove them
+	str_combinations.clear();
+	for(auto idx : sketch) str_combinations.push_back(dsc[idx]);
+	std::sort(str_combinations.begin(), str_combinations.end());
+	for(uint32_t i = 0; i < str_combinations.size(); ++i) set_index[str_combinations[i]] = i;
+	for(auto& idx : sketch) idx = set_index[dsc[idx]];
 }
 
 void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets)

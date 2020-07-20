@@ -122,38 +122,19 @@ int sense_main(int argc, char* argv[])
 		if(nrows == 0) nrows = log(sch.size() / delta); //FIXME find good dimensioning of the rows
 		if(ncolumns == 0) ncolumns = static_cast<std::size_t>(sch[1].second); //FIXME is this the best number of columns?
 	}
-	//FIXME directly use an enumeration of the sets. Keep a hash table to store the sets and insert a new set when it is not found. 
-	sketch_t sketch(nrows * ncolumns);
-	uint32_t heavy_element_to_exclude = 0;
-	if (sch.size() != 0) heavy_element_to_exclude = sch[0].first; //If we know the histogram then skip the heavy hitter to reduce space in the buckets
-	fill_sketch(kmc_filename, nrows, ncolumns, sketch, heavy_element_to_exclude);
 
-	std::vector<std::string> sorted_combinations;
-	std::vector<uint32_t> to_be_stored;
-
-	{//Begin
-	std::unordered_map<std::string, uint32_t> combinations;
-	for(auto& bucket : sketch) 
-	{
-		std::sort(bucket.begin(), bucket.end());
-		combinations[set2str(bucket)] = 0;
-	}
-
-	for(auto it = combinations.cbegin(); it != combinations.cend(); ++it) sorted_combinations.push_back(it->first);
-	std::sort(sorted_combinations.begin(), sorted_combinations.end());
-	for(std::size_t value = 0; value < sorted_combinations.size(); ++value) combinations[sorted_combinations[value]] = value;
-
-	for(const auto& bucket : sketch) to_be_stored.push_back(combinations.at(set2str(bucket)));
-	}//End
+	std::vector<std::string> combinations;
+	std::vector<uint32_t> sketch(nrows * ncolumns);
+	fill_sketch_small(kmc_filename, nrows, ncolumns, combinations, sketch, sch.size() != 0 ? sch[0].first : std::numeric_limits<uint32_t>::max());
 
 	std::ofstream combo(output_filename + ".cmb.txt");
-	for(auto s : sorted_combinations) combo << s << "\n";
+	for(auto s : combinations) combo << s << "\n";
 	combo.close();
 
 	std::ofstream skdump(output_filename + ".bin", std::ios::binary);
 	skdump.write(reinterpret_cast<char*>(&nrows), sizeof(decltype(nrows)));
 	skdump.write(reinterpret_cast<char*>(&ncolumns), sizeof(decltype(ncolumns)));
-	skdump.write(reinterpret_cast<char*>(to_be_stored.data()), to_be_stored.size() * sizeof(decltype(to_be_stored)::value_type));
+	skdump.write(reinterpret_cast<char*>(sketch.data()), sketch.size() * sizeof(decltype(sketch)::value_type));
 	skdump.close();
 
 	return EXIT_SUCCESS;

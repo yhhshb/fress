@@ -2,6 +2,8 @@
 #include "nthash.hpp"
 #include "./kmc_api/kmc_file.h"
 
+#include <chrono>
+
 std::map<uint32_t, std::size_t> compute_histogram(std::string kmc_name)
 {
 	CKMCFile kmcdb;
@@ -153,12 +155,15 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	char str_kmer[_kmer_length + 1];
 	uint64_t hashes[nrows];
 	bucket_t intersection;
+	std::size_t ncolls = 0;
+	//using namespace std::chrono;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
 		for(std::size_t i = 0; i < nrows; ++i)
 		{
+			//auto start = high_resolution_clock::now();
 			std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
 			if(i == 0) intersection = frequency_sets[setmap[bucket_index]];
 			else {
@@ -167,16 +172,19 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 				std::set_intersection(intersection.cbegin(), intersection.cend(), current.cbegin(), current.cend(), std::back_inserter(dummy));
 				intersection = dummy;
 			}
+			//std::cerr << "time for one query: " << std::chrono::duration_cast<nanoseconds>(system_clock::now() - start).count() << "\n";
 		}
-		bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
-		bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
-		bool unsolved_collisions = intersection.size() > 1;
-		if(wrong_value or unsolved_collisions)
-		//if(intersection.size() > 0 and counter != intersection.back()) //FIXME use the min(histo[intersection]) for selecting the right probability
+		//bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
+		//bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
+		//bool unsolved_collisions = intersection.size() > 1;
+		if(intersection.size() > 0 and counter != intersection.back()) //FIXME use the min(histo[intersection]) for selecting the right probability
 		{
-			std::cout << str_kmer << ", " << counter << ", " << intersection << "\n";
+			++ncolls;
+			if(std::abs(static_cast<long long>(counter) - intersection.back()) > 3)
+				std::cout << str_kmer << ", " << counter << ", " << intersection << "\n";
 		}
 	}
-	std::cout << std::endl;
 	kmcdb.Close();
+	std::cout << std::endl;
+	std::cerr << "Total number of collisions: " << ncolls << std::endl;
 }

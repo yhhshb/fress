@@ -1,4 +1,5 @@
 #include "fresslib.hpp"
+// #include <algorithm>
 
 extern "C" {
 #include "ketopt.h"
@@ -29,7 +30,7 @@ void print_sense_help()
 	fprintf(stderr, "s\tinput histogram generated from the input kmc database using the <histogram> subcommand\n");
 	fprintf(stderr, "r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
 	fprintf(stderr, "b\tnumber of columns. If not specified it is computed from the histogram\n");
-	fprintf(stderr, "d\tfailing probability [0.01]. Ignored if the number of rows has been specified\n");
+	fprintf(stderr, "p\tprobability of collision of two elements in the intersection [0.01]\n");
 	fprintf(stderr, "h\tshows this help\n");
 }
 
@@ -90,8 +91,9 @@ int sense_main(int argc, char* argv[])
 	std::vector<std::pair<uint32_t, std::size_t>> sch;
 	std::size_t nrows = 0;
 	std::size_t ncolumns = 0;
-	double delta = 0.01;
-	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:d:h", longopts)) >= 0)
+	double f = 0.5;
+	double p = 0.001;
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:p:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
@@ -103,8 +105,10 @@ int sense_main(int argc, char* argv[])
 			nrows = std::stoul(opt.arg, nullptr, 10);
 		} else if (c == 'b') {
 			ncolumns = std::stoul(opt.arg, nullptr, 10);
-		} else if (c == 'd') {
-			delta = std::stod(opt.arg);
+		} else if (c == 'f') {//Expected fraction of empty buckets for the second heaviest element
+			f = std::stod(opt.arg);//0.5 is the optimal value that minimizes the space for all p
+		} else if (c == 'p') {
+			p = std::stod(opt.arg);
 		} else if (c == 'h') {
 			print_sense_help();
 			return EXIT_SUCCESS;
@@ -119,9 +123,15 @@ int sense_main(int argc, char* argv[])
 	if(nrows == 0 or ncolumns == 0)
 	{
 		if(sch.size() == 0) sch = sort_histogram(compute_histogram(kmc_filename));
-		if(nrows == 0) nrows = log(sch.size() / delta); //FIXME find good dimensioning of the rows
-		if(ncolumns == 0) ncolumns = static_cast<std::size_t>(sch[1].second); //FIXME is this the best number of columns?
+		//std::size_t L1 = 0;
+		//for(auto elem : sch) L1 += elem.second;
+		if(ncolumns == 0) ncolumns = - static_cast<double>(sch[1].second) / std::log(f);
+		//double temp = std::log(p) / std::log(static_cast<double>(sch[1].second) / ncolumns);
+		double temp = std::log(p) / std::log(1-f);
+		if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(temp));
 	}
+	
+	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 
 	std::vector<std::string> combinations;
 	std::vector<uint32_t> sketch(nrows * ncolumns);

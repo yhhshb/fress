@@ -76,8 +76,6 @@ void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t 
 	unsigned long long _total_kmers;
 	kmcdb.Info(_kmer_length, _mode, _counter_size, _lut_prefix_length, _signature_len, _min_count, _max_count, _total_kmers);
 
-	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
-
 	CKmerAPI kmer(_kmer_length);
 	uint32_t counter = 0;
 	char str_kmer[_kmer_length + 1];
@@ -156,14 +154,16 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	uint64_t hashes[nrows];
 	bucket_t intersection;
 	std::size_t ncolls = 0;
-	//using namespace std::chrono;
+	std::size_t nqueries = 0;
+	std::size_t total_time = 0;
+	using namespace std::chrono;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
+		auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
 		for(std::size_t i = 0; i < nrows; ++i)
 		{
-			//auto start = high_resolution_clock::now();
 			std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
 			if(i == 0) intersection = frequency_sets[setmap[bucket_index]];
 			else {
@@ -172,8 +172,9 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 				std::set_intersection(intersection.cbegin(), intersection.cend(), current.cbegin(), current.cend(), std::back_inserter(dummy));
 				intersection = dummy;
 			}
-			//std::cerr << "time for one query: " << std::chrono::duration_cast<nanoseconds>(system_clock::now() - start).count() << "\n";
 		}
+		total_time += std::chrono::duration_cast<nanoseconds>(system_clock::now() - start).count();
+		++nqueries;
 		//bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
 		//bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
 		//bool unsolved_collisions = intersection.size() > 1;
@@ -187,4 +188,5 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	kmcdb.Close();
 	std::cout << std::endl;
 	std::cerr << "Total number of collisions: " << ncolls << std::endl;
+	std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds"<< std::endl;
 }

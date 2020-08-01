@@ -128,7 +128,7 @@ int sense_main(int argc, char* argv[])
 		if(ncolumns == 0) ncolumns = - static_cast<double>(sch[1].second) / std::log(f);
 		//double temp = std::log(p) / std::log(static_cast<double>(sch[1].second) / ncolumns);
 		double temp = std::log(p) / std::log(1-f);
-		if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(temp));
+		if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(std::ceil(temp)));
 	}
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);

@@ -59,7 +59,7 @@ std::vector<std::pair<uint32_t, std::size_t>> sort_histogram(const std::map<uint
 	return sorted_columns;
 }
 
-void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, std::vector<std::string>& str_combinations, std::vector<uint32_t>& sketch, uint32_t heavy_element)
+void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, uint32_t heavy_element, std::vector<std::string>& str_combinations, std::vector<uint32_t>& sketch)
 {
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
@@ -133,6 +133,7 @@ void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t 
 
 void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets)
 {
+	using namespace std::chrono;
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
 		throw std::runtime_error("Unable to open the database\n");
@@ -154,26 +155,32 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	uint64_t hashes[nrows];
 	bucket_t intersection;
 	std::size_t ncolls = 0;
+	std::size_t delta_sum = 0;
 	std::size_t nqueries = 0;
 	std::size_t total_time = 0;
-	using namespace std::chrono;
+	std::size_t total_hash_time = 0;
+	std::size_t total_cycle_time = 0;
+	bucket_t dummy;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
 		auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
+		total_hash_time += duration_cast<nanoseconds>(system_clock::now() - start).count();
+		auto start2 = high_resolution_clock::now();
 		for(std::size_t i = 0; i < nrows; ++i)
 		{
 			std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
 			if(i == 0) intersection = frequency_sets[setmap[bucket_index]];
 			else {
-				bucket_t dummy;
+				dummy.clear();
 				const bucket_t& current = frequency_sets[setmap[bucket_index]];
 				std::set_intersection(intersection.cbegin(), intersection.cend(), current.cbegin(), current.cend(), std::back_inserter(dummy));
-				intersection = dummy;
+				std::swap(intersection, dummy);
 			}
 		}
-		total_time += std::chrono::duration_cast<nanoseconds>(system_clock::now() - start).count();
+		total_cycle_time += duration_cast<nanoseconds>(system_clock::now() - start2).count();
+		total_time += duration_cast<nanoseconds>(system_clock::now() - start).count();
 		++nqueries;
 		//bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
 		//bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
@@ -181,12 +188,16 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 		if(intersection.size() > 0 and counter != intersection.back()) //FIXME use the min(histo[intersection]) for selecting the right probability
 		{
 			++ncolls;
-			if(std::abs(static_cast<long long>(counter) - intersection.back()) > 3)
-				std::cout << str_kmer << ", " << counter << ", " << intersection << "\n";
+			auto delta = std::abs(static_cast<long long>(counter) - intersection.back());
+			delta_sum += delta;	
+			if(delta > 0) std::cout << str_kmer << ", " << counter << ", " << intersection << "\n";
 		}
 	}
 	kmcdb.Close();
 	std::cout << std::endl;
-	std::cerr << "Total number of collisions: " << ncolls << std::endl;
-	std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds"<< std::endl;
+	std::cerr << "Total number of collisions: " << ncolls << "\n";
+	std::cerr << "L1 norm of the errors: " << delta_sum << "\n";
+	std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
+	std::cerr << "Mean time to run the outer for loop: " << total_cycle_time / nqueries << " nanoseconds\n";
+	std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
 }

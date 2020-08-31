@@ -1,5 +1,4 @@
 #include "fresslib.hpp"
-// #include <algorithm>
 
 extern "C" {
 #include "ketopt.h"
@@ -17,29 +16,29 @@ void print_subcommands()
 void print_histogram_help()
 {
 	fprintf(stderr, "histogram options:\n");
-	fprintf(stderr, "i\tinput kmc database (without extensions)\n");
-	fprintf(stderr, "o\toutput file. A two-column tsv file where the first column contains the frequencies and the second column the total number of k-mers having that frequency\n");
-	fprintf(stderr, "h\tshows this help\n");
+	fprintf(stderr, "\t-i\tinput kmc database (without extensions)\n");
+	fprintf(stderr, "\t-o\toutput file. A two-column tsv file where the first column contains the frequencies and the second column the total number of k-mers having that frequency\n");
+	fprintf(stderr, "\t-h\tshows this help\n");
 }
 
 void print_sense_help()
 {
 	fprintf(stderr, "sense options:\n");
-	fprintf(stderr, "i\tinput kmc database (without extensions)\n");
-	fprintf(stderr, "o\toutput probabilistic map containing the frequencies\n");
-	fprintf(stderr, "s\tinput histogram generated from the input kmc database using the <histogram> subcommand\n");
-	fprintf(stderr, "r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
-	fprintf(stderr, "b\tnumber of columns. If not specified it is computed from the histogram\n");
-	fprintf(stderr, "p\tprobability of collision of two elements in the intersection [0.01]\n");
-	fprintf(stderr, "h\tshows this help\n");
+	fprintf(stderr, "\t-i\tinput kmc database (without extensions)\n");
+	fprintf(stderr, "\t-o\toutput probabilistic map containing the frequencies\n");
+	fprintf(stderr, "\t-s\tinput histogram generated from the input kmc database using the <histogram> subcommand\n");
+	fprintf(stderr, "\t-r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
+	fprintf(stderr, "\t-b\tnumber of columns. If not specified it is computed from the histogram\n");
+	fprintf(stderr, "\t-p\tprobability of collision of two elements in the intersection [0.01]\n");
+	fprintf(stderr, "\t-h\tshows this help\n");
 }
 
 void print_check_help()
 {
 	fprintf(stderr, "check options:\n");
-	fprintf(stderr, "i\tinput kmc database (without extensions)\n");
-	fprintf(stderr, "d\tinput map built from the input kmc database (without extensions)\n");
-	fprintf(stderr, "h\tshows this help\n");
+	fprintf(stderr, "\t-i\tinput kmc database (without extensions)\n");
+	fprintf(stderr, "\t-d\tinput map built from the input kmc database (without extensions)\n");
+	fprintf(stderr, "\t-h\tshows this help\n");
 	fprintf(stderr, "\nThe output is on stdout and are all k-mers for which the predicted frequency is wrong or there are multiple frequencies\n");
 	fprintf(stderr, "Each k-mer will have its true frequency and the (wrong) intersection of frequencies\n");
 }
@@ -92,7 +91,7 @@ int sense_main(int argc, char* argv[])
 	std::size_t nrows = 0;
 	std::size_t ncolumns = 0;
 	double f = 0.5;
-	double p = 0.001;
+	double p = 0.01;
 	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:p:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
@@ -135,7 +134,7 @@ int sense_main(int argc, char* argv[])
 
 	std::vector<std::string> combinations;
 	std::vector<uint32_t> sketch(nrows * ncolumns);
-	fill_sketch_small(kmc_filename, nrows, ncolumns, combinations, sketch, sch.size() != 0 ? sch[0].first : std::numeric_limits<uint32_t>::max());
+	fill_sketch_small(kmc_filename, nrows, ncolumns, sch.size() != 0 ? sch[0].first : std::numeric_limits<uint32_t>::max(), combinations, sketch);
 
 	std::ofstream combo(output_filename + ".cmb.txt");
 	for(auto s : combinations) combo << s << "\n";
@@ -204,7 +203,14 @@ int main(int argc, char* argv[])
 {
 	ketopt_t om = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&om, argc, argv, 0, "x", 0)) >= 0) {} //parse main options and find subcommand
+	while((c = ketopt(&om, argc, argv, 0, "h", 0)) >= 0) //parse main options and find subcommand
+	{
+		if(c == 'h') 
+		{
+			print_subcommands();
+			return EXIT_SUCCESS;
+		}
+	}
 	if (om.ind == argc) {
 		fprintf(stderr, "[Error] Subcommand unavailable\n\n");
 		print_subcommands();

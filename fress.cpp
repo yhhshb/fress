@@ -122,8 +122,6 @@ int sense_main(int argc, char* argv[])
 	if(nrows == 0 or ncolumns == 0)
 	{
 		if(sch.size() == 0) sch = sort_histogram(compute_histogram(kmc_filename));
-		//std::size_t L1 = 0;
-		//for(auto elem : sch) L1 += elem.second;
 		if(ncolumns == 0) ncolumns = - static_cast<double>(sch[1].second) / std::log(f);
 		//double temp = std::log(p) / std::log(static_cast<double>(sch[1].second) / ncolumns);
 		double temp = std::log(p) / std::log(1-f);
@@ -178,6 +176,7 @@ int check_main(int argc, char* argv[])
 
 	std::size_t nrows, ncolumns;
 	std::ifstream skdump(map_filename + ".bin", std::ios::binary);
+	if(not skdump.is_open()) throw std::runtime_error("Unable to open sketch index file");
 	skdump.read(reinterpret_cast<char*>(&nrows), sizeof(decltype(nrows)));
 	skdump.read(reinterpret_cast<char*>(&ncolumns), sizeof(decltype(ncolumns)));
 	std::vector<uint32_t> setmap(nrows * ncolumns);
@@ -185,6 +184,7 @@ int check_main(int argc, char* argv[])
 	skdump.close();
 
 	skdump.open(map_filename + ".cmb.txt");
+	if(not skdump.is_open()) throw std::runtime_error("Unable to open sketch combination file");
 	std::vector<std::vector<uint32_t>> frequency_sets;
 	std::string line;
 

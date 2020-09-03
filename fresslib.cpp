@@ -122,7 +122,7 @@ void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t 
 	for(const auto& combo : combinations) dsc.push_back(set2str(combo));
 	}//End
 
-	//There might be some unused combinations in the combinations vector, te following code is used to remove them
+	//There might be some unused combinations in the combinations vector, the following code is used to remove them
 	std::set<std::string> str_set_combos;
 	for(auto idx : sketch) str_set_combos.insert(dsc[idx]);
 	str_combinations = std::vector<std::string>();
@@ -153,24 +153,32 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	uint32_t counter = 0;
 	char str_kmer[_kmer_length + 1];
 	uint64_t hashes[nrows];
-	bucket_t intersection;
+	std::vector<const bucket_t*> sets(nrows);
+	bucket_t intersection, dummy;
+
 	std::size_t ncolls = 0;
 	std::size_t delta_sum = 0;
 	std::size_t nqueries = 0;
-	std::size_t total_time = 0;
-	std::size_t total_hash_time = 0;
-	std::size_t total_cycle_time = 0;
-	bucket_t dummy;
+	std::size_t bucket_index;
+
+	//std::size_t total_hash_time = 0;
+	//std::size_t total_cycle_time = 0;
+	//std::size_t total_getidx_time = 0;
+	//std::size_t total_intersect_time = 0;
+	//std::size_t total_time = 0;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
-		auto start = high_resolution_clock::now();
+		//auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
-		total_hash_time += duration_cast<nanoseconds>(system_clock::now() - start).count();
-		auto start2 = high_resolution_clock::now();
+		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		//auto start2 = high_resolution_clock::now();
 		for(std::size_t i = 0; i < nrows; ++i)
 		{
-			std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
+			//auto getidx_start = high_resolution_clock::now();
+			bucket_index = hashes[i] % ncolumns + i * ncolumns;
+			//total_getidx_time += duration_cast<nanoseconds>(high_resolution_clock::now() - getidx_start).count();
+			//auto intersect_start = high_resolution_clock::now();
 			if(i == 0) intersection = frequency_sets[setmap[bucket_index]];
 			else {
 				dummy.clear();
@@ -178,13 +186,11 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 				std::set_intersection(intersection.cbegin(), intersection.cend(), current.cbegin(), current.cend(), std::back_inserter(dummy));
 				std::swap(intersection, dummy);
 			}
+			//total_intersect_time += duration_cast<nanoseconds>(high_resolution_clock::now() - intersect_start).count(); 
 		}
-		total_cycle_time += duration_cast<nanoseconds>(system_clock::now() - start2).count();
-		total_time += duration_cast<nanoseconds>(system_clock::now() - start).count();
+		//total_cycle_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start2).count();
+		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		++nqueries;
-		//bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
-		//bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
-		//bool unsolved_collisions = intersection.size() > 1;
 		if(intersection.size() > 0 and counter != intersection.back()) //FIXME use the min(histo[intersection]) for selecting the right probability
 		{
 			++ncolls;
@@ -197,7 +203,13 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 	std::cout << std::endl;
 	std::cerr << "Total number of collisions: " << ncolls << "\n";
 	std::cerr << "L1 norm of the errors: " << delta_sum << "\n";
-	std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
-	std::cerr << "Mean time to run the outer for loop: " << total_cycle_time / nqueries << " nanoseconds\n";
-	std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
+	//std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
+	//std::cerr << "Mean time to run the outer for loop: " << total_cycle_time / nqueries << " nanoseconds\n";
+	//std::cerr << "Mean time to get set index: " << total_getidx_time / (nrows * nqueries) << " nanoseconds\n";
+	//std::cerr << "Mean time to compute set intersection: " << total_intersect_time / (nrows * nqueries) << " nanoseconds\n";
+	//std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
 }
+
+//bool wrong_low_hitter = intersection.size() == 0 and counter != 1;
+//bool wrong_value = (intersection.size() == 1) and (counter != intersection[0]);
+//bool unsolved_collisions = intersection.size() > 1;

@@ -18,8 +18,7 @@ def L1_error(histo, r, b):
     for i in range(F):
         rs = 0
         for j in range(i+1, F):
-            diff = histo[j][0] - histo[i][0]
-            assert diff >= 0, "diff is negative"
+            diff = abs(histo[j][0] - histo[i][0])
             rs += (coll_probs[i] * coll_probs[j])**r * diff #* jmax_probs[j]**r
         error += histo[i][1] * rs
     return error
@@ -91,7 +90,6 @@ if __name__ == "__main__":
     with open(args.histo, "r") as hf:
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
-    histogram.sort(key=lambda tup: tup[0])
-    #histogram.sort(key=lambda tup: tup[1], reverse=True)
+    histogram.sort(key=lambda tup: tup[1])#Changed from reverse = True to False because the min-counter item takes all
     optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns)
     print("Optimal (r, b) = ({}, {})".format(optr, optb))

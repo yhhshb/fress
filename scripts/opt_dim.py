@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import sys
 import math
 import functools
 
@@ -17,7 +18,8 @@ def L1_error(histo, r, b):
     for i in range(F):
         rs = 0
         for j in range(i+1, F):
-            diff = abs(histo[i][0] - histo[j][0])
+            diff = histo[j][0] - histo[i][0]
+            assert diff >= 0, "diff is negative"
             rs += (coll_probs[i] * coll_probs[j])**r * diff #* jmax_probs[j]**r
         error += histo[i][1] * rs
     return error
@@ -28,7 +30,7 @@ def optimize(histo, e, r, b):
     
     constr = constb = False
     if b == 0 or b == None:
-        b = int(math.ceil(-histo[1][1] / math.log(0.5)))#TODO take into account the delta between the two heavies elements
+        b = int(math.ceil(-histo[1][1] / math.log(0.5)))#TODO take into account the delta between the two heaviest elements
     else: 
         constb = True
     if r == 0 or r == None: r = int(math.ceil(math.log(e) / math.log(0.5)))
@@ -89,6 +91,7 @@ if __name__ == "__main__":
     with open(args.histo, "r") as hf:
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
-    histogram.sort(key=lambda tup: tup[1], reverse=True)
+    histogram.sort(key=lambda tup: tup[0])
+    #histogram.sort(key=lambda tup: tup[1], reverse=True)
     optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns)
     print("Optimal (r, b) = ({}, {})".format(optr, optb))

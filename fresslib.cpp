@@ -53,10 +53,20 @@ std::map<uint32_t, std::size_t> load_histogram(std::string histo_name)
 
 std::vector<std::pair<uint32_t, std::size_t>> sort_histogram(const std::map<uint32_t, std::size_t>& histo)
 {
-	std::vector<std::pair<uint32_t, std::size_t>> sorted_columns(histo.size());
+	std::vector<std::pair<uint32_t, std::size_t>> sorted_columns;
 	for(auto hbucket : histo) sorted_columns.push_back(hbucket);
 	std::sort(sorted_columns.begin(), sorted_columns.end(), [](auto &left, auto &right) { return left.second > right.second; });
 	return sorted_columns;
+}
+
+std::unordered_map<uint32_t, uint32_t> create_inv_index(const std::vector<std::pair<uint32_t, std::size_t>>& sorted_histogram)//FIXME use an Elias-Fano inverted index for query speed
+{
+	std::unordered_map<uint32_t, uint32_t> toRet;
+	for(uint32_t i = 0; i < sorted_histogram.size(); ++i)
+	{
+		toRet[sorted_histogram[i].first] = i;
+	}
+	return toRet;
 }
 
 void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, uint32_t heavy_element, std::vector<std::string>& str_combinations, std::vector<uint32_t>& sketch)
@@ -131,7 +141,7 @@ void fill_sketch_small(std::string kmc_filename, std::size_t nrows, std::size_t 
 	for(auto& idx : sketch) idx = set_index[dsc[idx]];
 }
 
-void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets)
+void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index)
 {
 	using namespace std::chrono;
 	CKMCFile kmcdb;
@@ -191,12 +201,17 @@ void check_sketch(std::string kmc_filename, std::size_t nrows, std::size_t ncolu
 		//total_cycle_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start2).count();
 		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		++nqueries;
-		if(intersection.size() > 0 and counter != intersection.back()) //FIXME use the min(histo[intersection]) for selecting the right probability
+		if(intersection.size() > 0 and counter != intersection.back())
 		{
 			++ncolls;
-			auto delta = std::abs(static_cast<long long>(counter) - intersection.back());
+			dummy.clear();
+			for(auto elem : intersection) dummy.push_back(inverted_index.at(elem));
+			auto smallest_itr = std::max_element(dummy.cbegin(), dummy.cend());
+			std::size_t idx = std::distance(dummy.cbegin(), smallest_itr);
+			uint32_t qval = intersection.at(idx);
+			auto delta = std::abs(static_cast<long long>(counter) - qval);
 			delta_sum += delta;	
-			if(delta > 0) std::cout << str_kmer << ", " << counter << ", " << intersection << "\n";
+			if(delta > 0) std::cout << str_kmer << ", " << counter << ", " << intersection << ", " << qval << ", " << dummy << ", " << idx << "\n";
 		}
 	}
 	kmcdb.Close();

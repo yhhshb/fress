@@ -119,7 +119,7 @@ int sense_main(int argc, char* argv[])
 	}
 
 	if(kmc_filename == "" or output_filename == "") throw std::runtime_error("-i and -o are mandatory arguments");
-	if(nrows == 0 or ncolumns == 0)
+	//if(nrows == 0 or ncolumns == 0)
 	{
 		if(sch.size() == 0) sch = sort_histogram(compute_histogram(kmc_filename));
 		if(ncolumns == 0) ncolumns = - static_cast<double>(sch[1].second) / std::log(f);
@@ -142,6 +142,14 @@ int sense_main(int argc, char* argv[])
 	skdump.write(reinterpret_cast<char*>(&ncolumns), sizeof(decltype(ncolumns)));
 	skdump.write(reinterpret_cast<char*>(sketch.data()), sketch.size() * sizeof(decltype(sketch)::value_type));
 	skdump.close();
+	
+	std::ofstream hf(output_filename + ".shist.txt");
+	for(auto it = sch.cbegin(); it != sch.cend(); ++it)
+	{
+		hf << it->first << "\t" << it->second << "\n";
+	}
+	hf.close();
+
 
 	return EXIT_SUCCESS;
 }
@@ -155,7 +163,7 @@ int check_main(int argc, char* argv[])
 	ketopt_t opt = KETOPT_INIT;
 	int c;
 	std::string kmc_filename, map_filename;
-	while((c = ketopt(&opt, argc, argv, 1, "i:d:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
@@ -186,7 +194,6 @@ int check_main(int argc, char* argv[])
 	if(not skdump.is_open()) throw std::runtime_error("Unable to open sketch combination file");
 	std::vector<std::vector<uint32_t>> frequency_sets;
 	std::string line;
-
 	c = 0;
 	while(std::getline(skdump, line))
 	{
@@ -194,7 +201,9 @@ int check_main(int argc, char* argv[])
 		if(c == 0) c = 1;//The first line of the file could be empty if the heavies element is implicit.
 	}
 	skdump.close();
-	check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets);
+
+	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sort_histogram(load_histogram(map_filename + ".shist.txt")));
+	check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
 	return EXIT_SUCCESS;
 }
 

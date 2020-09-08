@@ -41,5 +41,6 @@ std::vector<T> str2set(const std::string& setstr, char sep)
 std::map<uint32_t, std::size_t> compute_histogram(std::string kmc_name);
 std::map<uint32_t, std::size_t> load_histogram(std::string histo_name);
 std::vector<std::pair<uint32_t, std::size_t>> sort_histogram(const std::map<uint32_t, std::size_t>& histo);
+std::unordered_map<uint32_t, uint32_t> create_inv_index(const std::vector<std::pair<uint32_t, std::size_t>>& sorted_histogram);
 void fill_sketch_small(std::string kmc_name, std::size_t nrows, std::size_t ncolumns, uint32_t heavy_element, std::vector<std::string>& combinations, std::vector<uint32_t>& sketch);
-void check_sketch(std::string kmc_name, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets);
+void check_sketch(std::string kmc_name, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index);

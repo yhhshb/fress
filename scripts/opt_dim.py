@@ -40,7 +40,7 @@ def optimize(histo, e, r, b):
     print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
     if constr and constb and error > thr: raise RuntimeError("r = {} and b = {} do not allow to achieve the desired epsilon but only: {}".format(r, b, error/L1))
     old_r = r
-    while(error > thr):#increase r to the minimum value to achieve the desired threshold
+    while(error > thr):#increase r to the maximum value to achieve the desired threshold
         r += 1
         error = L1_error(histo, r, b)
     dim = r*b#total number of cells
@@ -90,6 +90,6 @@ if __name__ == "__main__":
     with open(args.histo, "r") as hf:
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
-    histogram.sort(key=lambda tup: tup[1])#Changed from reverse = True to False because the min-counter item takes all
+    histogram.sort(key=lambda tup: tup[1], reverse=True)
     optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns)
     print("Optimal (r, b) = ({}, {})".format(optr, optb))

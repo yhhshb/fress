@@ -30,7 +30,7 @@ void print_sense_help()
 	fprintf(stderr, "\t-s\tinput histogram generated from the input kmc database using the <histogram> subcommand\n");
 	fprintf(stderr, "\t-r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
 	fprintf(stderr, "\t-b\tnumber of columns. If not specified it is computed from the histogram\n");
-	fprintf(stderr, "\t-p\tprobability of collision of two elements in the intersection [0.01]\n");
+	fprintf(stderr, "\t-e\tepsilon approximation of the L1 sum of errors [0.01]\n");
 	fprintf(stderr, "\t-h\tshows this help\n");
 }
 
@@ -44,16 +44,21 @@ void print_check_help()
 	fprintf(stderr, "Each k-mer will have its true frequency and the (wrong) intersection of frequencies\n");
 }
 
+void print_info_help()
+{
+	fprintf(stderr, "info options:\n");
+	fprintf(stderr, "\t-d\tinput map built from a kmc database (without extensions)\n");
+	fprintf(stderr, "\t-h\tshows this help\n");
+	fprintf(stderr, "\nOutput the parameters used for construction an some other informations\n");
+}
 
 int histogram_main(int argc, char* argv[])
 {
-	static ko_longopt_t longopts[] = {
-		{NULL, 0, 0}
-	};
+	std::string kmc_filename, output_filename;
 
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	std::string kmc_filename, output_filename;
 	while((c = ketopt(&opt, argc, argv, 1, "i:o:h:", longopts)) >= 0)
 	{
 		if (c == 'i') {
@@ -70,45 +75,38 @@ int histogram_main(int argc, char* argv[])
 		}
 	}
 	auto histo = compute_histogram(kmc_filename);
-	std::ofstream hf(output_filename);
-	for(auto it = histo.cbegin(); it != histo.cend(); ++it)
-	{
-		hf << it->first << "\t" << it->second << "\n";
-	}
-	hf.close();
+	store_histogram(output_filename, histo);
 	return EXIT_SUCCESS;
 }
 
 int sense_main(int argc, char* argv[])
 {
-	static ko_longopt_t longopts[] = {
-		{NULL, 0, 0}
-	};
-
+	std::string kmc_filename, output_filename;
+	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
+	uint64_t nrows = 0;
+	uint64_t ncolumns = 0;
+	//double f = 0.5;
+	double epsilon = 0.01;
+	
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	std::string kmc_filename, output_filename;
-	std::vector<std::pair<uint32_t, std::size_t>> sch;
-	std::size_t nrows = 0;
-	std::size_t ncolumns = 0;
-	double f = 0.5;
-	double p = 0.01;
-	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:p:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:e:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
 		} else if (c == 'o') {
 			output_filename = opt.arg;
 		} else if (c == 's') {
-			sch = sort_histogram(load_histogram(opt.arg));
+			sorted_hist = sort_histogram(load_histogram(opt.arg));
 		} else if (c == 'r') {
 			nrows = std::stoul(opt.arg, nullptr, 10);
 		} else if (c == 'b') {
 			ncolumns = std::stoul(opt.arg, nullptr, 10);
-		} else if (c == 'f') {//Expected fraction of empty buckets for the second heaviest element
-			f = std::stod(opt.arg);//0.5 is the optimal value that minimizes the space for all p
-		} else if (c == 'p') {
-			p = std::stod(opt.arg);
+		//} else if (c == 'f') {//Expected fraction of empty buckets for the second heaviest element
+		//	f = std::stod(opt.arg);//0.5 is the optimal value that minimizes the space for all p
+		} else if (c == 'e') {
+			epsilon = std::stod(opt.arg);
 		} else if (c == 'h') {
 			print_sense_help();
 			return EXIT_SUCCESS;
@@ -120,50 +118,32 @@ int sense_main(int argc, char* argv[])
 	}
 
 	if(kmc_filename == "" or output_filename == "") throw std::runtime_error("-i and -o are mandatory arguments");
-	//if(nrows == 0 or ncolumns == 0)
-	{
-		if(sch.size() == 0) sch = sort_histogram(compute_histogram(kmc_filename));
-		if(ncolumns == 0) ncolumns = - static_cast<double>(sch[1].second) / std::log(f);
-		double temp = std::log(p) / std::log(1-f);
-		if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(std::ceil(temp)));
-	}
+	if(sorted_hist.size() == 0) sorted_hist = sort_histogram(compute_histogram(kmc_filename));
+	//if(ncolumns == 0) ncolumns = - static_cast<double>(sorted_hist[1].second) / std::log(f);
+	//double temp = std::log(p) / std::log(1-f);
+	//if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(std::ceil(temp)));
+	optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 
 	std::vector<std::string> combinations;
 	std::vector<uint32_t> sketch(nrows * ncolumns);
-	fill_sketch_small(kmc_filename, nrows, ncolumns, sch.size() != 0 ? sch[0].first : std::numeric_limits<uint32_t>::max(), combinations, sketch);
-
-	std::ofstream combo(output_filename + ".cmb.txt");
-	for(auto s : combinations) combo << s << "\n";
-	combo.close();
-
-	std::ofstream skdump(output_filename + ".bin", std::ios::binary);
-	skdump.write(reinterpret_cast<char*>(&nrows), sizeof(decltype(nrows)));
-	skdump.write(reinterpret_cast<char*>(&ncolumns), sizeof(decltype(ncolumns)));
-	skdump.write(reinterpret_cast<char*>(sketch.data()), sketch.size() * sizeof(decltype(sketch)::value_type));
-	skdump.close();
+	fill_sketch_small(kmc_filename, nrows, ncolumns, sorted_hist.size() != 0 ? sorted_hist[0].first : std::numeric_limits<uint32_t>::max(), combinations, sketch);
 	
-	std::ofstream hf(output_filename + ".shist.txt");
-	for(auto it = sch.cbegin(); it != sch.cend(); ++it)
-	{
-		hf << it->first << "\t" << it->second << "\n";
-	}
-	hf.close();
-
-
+	store_histogram(output_filename + ".shist.txt", sorted_hist);
+	store_cmb(output_filename + ".cmb.txt", combinations);
+	store_setmap(output_filename + ".bin", nrows, ncolumns, sketch);
 	return EXIT_SUCCESS;
 }
 
 int check_main(int argc, char* argv[])
 {
-	static ko_longopt_t longopts[] = {
-		{NULL, 0, 0}
-	};
+	std::string kmc_filename, map_filename;
+	uint64_t nrows, ncolumns;
 
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	std::string kmc_filename, map_filename;
 	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
@@ -181,32 +161,43 @@ int check_main(int argc, char* argv[])
 	}
 
 	if(kmc_filename == "" or map_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
-
-	std::size_t nrows, ncolumns;
-	std::ifstream skdump(map_filename + ".bin", std::ios::binary);
-	if(not skdump.is_open()) throw std::runtime_error("Unable to open sketch index file");
-	skdump.read(reinterpret_cast<char*>(&nrows), sizeof(decltype(nrows)));
-	skdump.read(reinterpret_cast<char*>(&ncolumns), sizeof(decltype(ncolumns)));
-	std::vector<uint32_t> setmap(nrows * ncolumns);
-	skdump.read(reinterpret_cast<char*>(setmap.data()), setmap.size() * sizeof(decltype(setmap)::value_type));
-	skdump.close();
-
-	skdump.open(map_filename + ".cmb.txt");
-	if(not skdump.is_open()) throw std::runtime_error("Unable to open sketch combination file");
-	std::vector<std::vector<uint32_t>> frequency_sets;
-	std::string line;
-	c = 0;
-	while(std::getline(skdump, line))
-	{
-		if(c == 0 or line != "") frequency_sets.push_back(str2set<uint32_t>(line, ','));
-		if(c == 0) c = 1;//The first line of the file could be empty if the heavies element is implicit.
-	}
-	skdump.close();
-
 	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sort_histogram(load_histogram(map_filename + ".shist.txt")));
+	auto frequency_sets = load_cmb_for_query(map_filename + ".cmb.txt");
+	auto setmap = load_setmap(map_filename + ".bin", nrows, ncolumns, true);
 	check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
 	return EXIT_SUCCESS;
 }
+
+int info_main(int argc, char* argv[])
+{
+	std::string map_filename;
+	uint64_t nrows, ncolumns;
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
+	ketopt_t opt = KETOPT_INIT;
+	int c;
+	while((c = ketopt(&opt, argc, argv, 1, "d:h", longopts)) >= 0)
+	{
+		if (c == 'd') {
+			map_filename = opt.arg;
+		} else if (c == 'h') {
+			print_info_help();
+			return EXIT_SUCCESS;
+		} else {
+			fprintf(stderr, "Option (%c) not available\n", c);
+			print_check_help();
+			return EXIT_FAILURE;
+		}
+	}
+
+	if(map_filename == "") throw std::runtime_error("-d is a mandatory argument");
+	auto sorted_hist = sort_histogram(load_histogram(map_filename + ".shist.txt"));
+	auto frequency_sets = load_cmb_for_query(map_filename + ".cmb.txt");
+	auto setmap = load_setmap(map_filename + ".bin", nrows, ncolumns, false);
+	std::cerr << "r = " << nrows << " | b = " << ncolumns << "\n";
+	std::cerr << "total dimension = " << nrows * ncolumns << "\n";
+	return EXIT_SUCCESS;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -232,6 +223,8 @@ int main(int argc, char* argv[])
 		return sense_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "check") == 0) {
 		return check_main(argc - om.ind, &argv[om.ind]);
+	} else if (std::strcmp(argv[om.ind], "info") == 0) {
+		return info_main(argc - om.ind, &argv[om.ind]);
 	} else {
 		fprintf(stderr, "Missing subcommand\n\n");
 		print_subcommands();

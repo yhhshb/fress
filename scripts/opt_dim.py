@@ -5,24 +5,14 @@ import math
 import functools
 
 def L1_error(histo, r, b, explicit):
-    #coll_prob = lambda c, b: 1 - (math.e**(-c/b) if c < b else 0)
-    #coll_probs = [1-math.e**(-c/b) if c < b else 1 for f, c in histo]
     coll_probs = [1-(1-1/b)**c for f, c in histo]
-    #if not explicit: coll_probs[0] = 1
-    #sys.stderr.write(str(coll_probs) + '\n')
-    #no_coll_probs = [1-p for p in coll_probs]
-    F = len(histo)
-    
-    #jmax_probs = [1 for _ in range(F)]
-    #for j in range(F-2, -1, -1): jmax_probs[j] = jmax_probs[j+1] * no_coll_probs[j]
-    #jmax_probs = [1 - cp*ncp for cp, ncp in zip(coll_probs, jmax_probs)]
-    
+    sys.stderr.write(str(coll_probs) + '\n')
+    F = len(histo)    
     error = 0
     for i in range(F):
         rs = 0
         for j in range(i+1, F):
             diff = abs(histo[j][0] - histo[i][0])
-            #rs += (coll_probs[i] * coll_probs[j])**r * diff #* jmax_probs[j]**r
             rs += (coll_probs[j])**r * diff #* jmax_probs[j]**r
         error += histo[i][1] * rs
     return error

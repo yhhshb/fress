@@ -3,13 +3,14 @@
 #include <numeric>
 #include <exception>
 #include <vector>
-#include <map>
 #include <unordered_map>
+#include <iostream>
 #include <fstream>
-#include "prettyprint.hpp"
 
+typedef std::vector<std::pair<uint32_t, std::size_t>> hist_t;
+typedef std::vector<std::string> comb_t;
 typedef std::vector<uint32_t> bucket_t;
-typedef std::vector<bucket_t> sketch_t;
+typedef std::vector<uint32_t> sketch_t;
 
 template <class SetType>
 std::string set2str(const SetType& aSet) 
@@ -36,9 +37,18 @@ std::vector<T> str2set(const std::string& setstr, char sep)
 	return bucket;
 }
 
-std::map<uint32_t, std::size_t> compute_histogram(std::string kmc_name);
-std::map<uint32_t, std::size_t> load_histogram(std::string histo_name);
-std::vector<std::pair<uint32_t, std::size_t>> sort_histogram(const std::map<uint32_t, std::size_t>& histo);
-std::unordered_map<uint32_t, uint32_t> create_inv_index(const std::vector<std::pair<uint32_t, std::size_t>>& sorted_histogram);
-void fill_sketch_small(std::string kmc_name, std::size_t nrows, std::size_t ncolumns, uint32_t heavy_element, std::vector<std::string>& combinations, std::vector<uint32_t>& sketch);
-void check_sketch(std::string kmc_name, std::size_t nrows, std::size_t ncolumns, const std::vector<uint32_t>& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index);
+hist_t compute_histogram(std::string kmc_name);
+void store_histogram(std::string histo_name, const hist_t& histo);
+hist_t load_histogram(std::string histo_name);
+hist_t sort_histogram(const hist_t& histo);
+std::unordered_map<uint32_t, uint32_t> create_inv_index(const hist_t& sorted_histogram);
+
+void store_cmb(std::string comb_name, const comb_t& combinations);
+std::vector<std::vector<uint32_t>> load_cmb_for_query(std::string comb_name);
+void store_setmap(std::string setmap_name, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap);
+sketch_t load_setmap(std::string setmap_name, uint64_t& nrows, uint64_t& ncolumns, bool all);
+
+double estimate_error(const hist_t& sorted_hist, uint64_t nrows, uint64_t ncolumns);
+void optimise_r_b(const hist_t& sorted_histo, double target_error, uint64_t& nrows, uint64_t& ncolumns);
+void fill_sketch_small(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, uint32_t heavy_element, comb_t& combinations, sketch_t& setmap);
+void check_sketch(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index);

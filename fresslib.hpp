@@ -1,12 +1,10 @@
 #include <cmath>
-#include <cstring>
 #include <sstream>
 #include <numeric>
 #include <exception>
 #include <vector>
 #include <map>
 #include <unordered_map>
-#include <cstdio>
 #include <fstream>
 #include "prettyprint.hpp"
 

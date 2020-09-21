@@ -40,7 +40,6 @@ std::map<uint32_t, std::size_t> load_histogram(std::string histo_name)
 {
 	std::map<uint32_t, std::size_t> histo;
 	std::string line;
-	std::stringstream ss;
 	std::ifstream histo_file(histo_name);
 	while(std::getline(histo_file, line))
 	{

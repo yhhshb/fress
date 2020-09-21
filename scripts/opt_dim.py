@@ -4,10 +4,13 @@ import sys
 import math
 import functools
 
-def L1_error(histo, r, b):
+def L1_error(histo, r, b, explicit):
     #coll_prob = lambda c, b: 1 - (math.e**(-c/b) if c < b else 0)
-    coll_probs = [1-math.e**(-c/b) if c < b else 1 for f, c in histo]
-    no_coll_probs = [1-p for p in coll_probs]
+    #coll_probs = [1-math.e**(-c/b) if c < b else 1 for f, c in histo]
+    coll_probs = [1-(1-1/b)**c for f, c in histo]
+    #if not explicit: coll_probs[0] = 1
+    #sys.stderr.write(str(coll_probs) + '\n')
+    #no_coll_probs = [1-p for p in coll_probs]
     F = len(histo)
     
     #jmax_probs = [1 for _ in range(F)]
@@ -19,11 +22,12 @@ def L1_error(histo, r, b):
         rs = 0
         for j in range(i+1, F):
             diff = abs(histo[j][0] - histo[i][0])
-            rs += (coll_probs[i] * coll_probs[j])**r * diff #* jmax_probs[j]**r
+            #rs += (coll_probs[i] * coll_probs[j])**r * diff #* jmax_probs[j]**r
+            rs += (coll_probs[j])**r * diff #* jmax_probs[j]**r
         error += histo[i][1] * rs
     return error
 
-def optimize(histo, e, r, b):
+def optimize(histo, e, r, b, explicit):
     L1 = sum([f * c for f, c in histogram])
     thr = e*L1
     
@@ -35,14 +39,14 @@ def optimize(histo, e, r, b):
     if r == 0 or r == None: r = int(math.ceil(math.log(e) / math.log(0.5)))
     else: constr = True
     
-    error = L1_error(histo, r, b)
+    error = L1_error(histo, r, b, explicit)
     print("Threshold = {} for a L1 norm of {}".format(thr, L1))
     print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
     if constr and constb and error > thr: raise RuntimeError("r = {} and b = {} do not allow to achieve the desired epsilon but only: {}".format(r, b, error/L1))
     old_r = r
     while(error > thr):#increase r to the maximum value to achieve the desired threshold
         r += 1
-        error = L1_error(histo, r, b)
+        error = L1_error(histo, r, b, explicit)
     dim = r*b#total number of cells
     if constb:#if b was set by the user we are done
         return r, b
@@ -52,7 +56,7 @@ def optimize(histo, e, r, b):
         while(error < thr):
             r -= 1
             b = math.ceil(dim/r)
-            error = L1_error(histo, r, b)
+            error = L1_error(histo, r, b, explicit)
             print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
         r += 1
     b = math.ceil(dim/r)#set b to maintain constant memory
@@ -61,21 +65,12 @@ def optimize(histo, e, r, b):
         sys.stderr.write("Warning, b is smaller than the total number of labels, setting to that value\n")
         b = len(histo)
     return r, b
-    
-    """
-    rinc = 0
-    binc = 0
-    while(error > thr):
-        if not constb: binc += 1
-        if(not constr and binc > b/r):
-            binc = 0
-            rinc += 1
-        error = L1_error(histo, r + rinc, b + binc)
-    r+=rinc
-    b+=binc
-    return r, b
-    """
-        
+
+def str2bool(v):
+    if isinstance(v, bool): return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'): return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'): return False
+    else: raise argparse.ArgumentTypeError("Boolean value expected.")        
 
 if __name__ == "__main__":
     import argparse
@@ -84,6 +79,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epsilon", help="maximum error rate", type=float, required=True)
     parser.add_argument("-r", "--nrows", help="number of rows", type=int)
     parser.add_argument("-b", "--ncolumns", help="number of columns", type=int)
+    parser.add_argument("-x", "--explicit", help="The heaviest element is explicitly included in the sketch", type=str2bool, nargs='?', const=True, default=False)
     
     args = parser.parse_args()
     histogram = list()
@@ -91,5 +87,5 @@ if __name__ == "__main__":
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
     histogram.sort(key=lambda tup: tup[1], reverse=True)
-    optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns)
+    optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns, args.explicit)
     print("Optimal (r, b) = ({}, {})".format(optr, optb))

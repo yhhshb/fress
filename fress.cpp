@@ -1,3 +1,4 @@
+#include <cstring>
 #include "fresslib.hpp"
 
 extern "C" {

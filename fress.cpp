@@ -49,7 +49,7 @@ void print_info_help()
 	fprintf(stderr, "info options:\n");
 	fprintf(stderr, "\t-d\tinput map built from a kmc database (without extensions)\n");
 	fprintf(stderr, "\t-h\tshows this help\n");
-	fprintf(stderr, "\nOutput the parameters used for construction an some other informations\n");
+	fprintf(stderr, "\nOutput the parameters used for construction and some other informations\n");
 }
 
 int histogram_main(int argc, char* argv[])
@@ -125,6 +125,7 @@ int sense_main(int argc, char* argv[])
 	optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
+	fprintf(stdout, "%lu", nrows * ncolumns);//script-friendly output
 
 	std::vector<std::string> combinations;
 	std::vector<uint32_t> sketch(nrows * ncolumns);
@@ -164,7 +165,8 @@ int check_main(int argc, char* argv[])
 	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sort_histogram(load_histogram(map_filename + ".shist.txt")));
 	auto frequency_sets = load_cmb_for_query(map_filename + ".cmb.txt");
 	auto setmap = load_setmap(map_filename + ".bin", nrows, ncolumns, true);
-	check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
+	auto rvals = check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
+	fprintf(stdout, "%s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
 

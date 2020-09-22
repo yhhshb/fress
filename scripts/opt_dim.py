@@ -1,10 +1,15 @@
 #!/usr/bin/python3
 
+"""
+This script is outdated because the parameter estimation is now integrated into fress.
+DO NOT USE IT
+"""
+
 import sys
 import math
 import functools
 
-def L1_error(histo, r, b, explicit):
+def L1_error(histo, r, b):
     coll_probs = [1-(1-1/b)**c for f, c in histo]
     sys.stderr.write(str(coll_probs) + '\n')
     F = len(histo)    
@@ -17,26 +22,24 @@ def L1_error(histo, r, b, explicit):
         error += histo[i][1] * rs
     return error
 
-def optimize(histo, e, r, b, explicit):
+def optimize(histo, e, r, b):
     L1 = sum([f * c for f, c in histogram])
     thr = e*L1
     
     constr = constb = False
-    if b == 0 or b == None:
-        b = int(math.ceil(-histo[1][1] / math.log(0.5)))#TODO take into account the delta between the two heaviest elements
-    else: 
-        constb = True
+    if b == 0 or b == None: b = int(math.ceil(-histo[1][1] / math.log(0.5)))
+    else: constb = True
     if r == 0 or r == None: r = int(math.ceil(math.log(e) / math.log(0.5)))
     else: constr = True
     
-    error = L1_error(histo, r, b, explicit)
+    error = L1_error(histo, r, b)
     print("Threshold = {} for a L1 norm of {}".format(thr, L1))
     print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
     if constr and constb and error > thr: raise RuntimeError("r = {} and b = {} do not allow to achieve the desired epsilon but only: {}".format(r, b, error/L1))
     old_r = r
     while(error > thr):#increase r to the maximum value to achieve the desired threshold
         r += 1
-        error = L1_error(histo, r, b, explicit)
+        error = L1_error(histo, r, b)
     dim = r*b#total number of cells
     if constb:#if b was set by the user we are done
         return r, b
@@ -46,12 +49,11 @@ def optimize(histo, e, r, b, explicit):
         while(error < thr):
             r -= 1
             b = math.ceil(dim/r)
-            error = L1_error(histo, r, b, explicit)
+            error = L1_error(histo, r, b)
             print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
         r += 1
     b = math.ceil(dim/r)#set b to maintain constant memory
-    #TODO optimize b 
-    if b < len(histo):#FIXME this should be part of the optimization of b
+    if b < len(histo):
         sys.stderr.write("Warning, b is smaller than the total number of labels, setting to that value\n")
         b = len(histo)
     return r, b
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epsilon", help="maximum error rate", type=float, required=True)
     parser.add_argument("-r", "--nrows", help="number of rows", type=int)
     parser.add_argument("-b", "--ncolumns", help="number of columns", type=int)
-    parser.add_argument("-x", "--explicit", help="The heaviest element is explicitly included in the sketch", type=str2bool, nargs='?', const=True, default=False)
+    #parser.add_argument("-x", "--explicit", help="The heaviest element is explicitly included in the sketch", type=str2bool, nargs='?', const=True, default=False)
     
     args = parser.parse_args()
     histogram = list()
@@ -77,5 +79,5 @@ if __name__ == "__main__":
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
     histogram.sort(key=lambda tup: tup[1], reverse=True)
-    optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns, args.explicit)
+    optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns)
     print("Optimal (r, b) = ({}, {})".format(optr, optb))

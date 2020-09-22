@@ -51,4 +51,4 @@ sketch_t load_setmap(std::string setmap_name, uint64_t& nrows, uint64_t& ncolumn
 double estimate_error(const hist_t& sorted_hist, uint64_t nrows, uint64_t ncolumns);
 void optimise_r_b(const hist_t& sorted_histo, double target_error, uint64_t& nrows, uint64_t& ncolumns);
 void fill_sketch_small(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, uint32_t heavy_element, comb_t& combinations, sketch_t& setmap);
-void check_sketch(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index);
+std::vector<std::string> check_sketch(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index);

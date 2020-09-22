@@ -261,7 +261,7 @@ void fill_sketch_small(std::string kmc_filename, uint64_t nrows, uint64_t ncolum
 	for(auto& idx : sketch) idx = set_index[dsc[idx]];
 }
 
-void check_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index)
+std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index)
 {
 	using namespace std::chrono;
 	CKMCFile kmcdb;
@@ -339,13 +339,19 @@ void check_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, c
 		}
 	}
 	kmcdb.Close();
-	std::cerr << "Total number of collisions: " << ncolls << "\n";
-	std::cerr << "L1 norm of the errors: " << delta_sum << "\n";
-	std::cerr << "Average delta: " << static_cast<double>(delta_sum) / ncolls << "\n";
-	std::cerr << "MAX delta: " << delta_max << std::endl;
+	std::vector<std::string> toRet(4);
+	toRet[0] = std::to_string(ncolls);
+	toRet[1] = std::to_string(delta_sum);
+	toRet[2] = std::to_string(static_cast<double>(delta_sum)/ncolls);
+	toRet[3] = std::to_string(delta_max);
+	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
+	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
+	std::cerr << "Average delta: " << toRet[2] << "\n";
+	std::cerr << "MAX delta: " << toRet[3] << std::endl;
 	//std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
 	//std::cerr << "Mean time to run the outer for loop: " << total_cycle_time / nqueries << " nanoseconds\n";
 	//std::cerr << "Mean time to get set index: " << total_getidx_time / (nrows * nqueries) << " nanoseconds\n";
 	//std::cerr << "Mean time to compute set intersection: " << total_intersect_time / (nrows * nqueries) << " nanoseconds\n";
 	//std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
+	return toRet;
 }

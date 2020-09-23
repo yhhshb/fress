@@ -122,10 +122,9 @@ int sense_main(int argc, char* argv[])
 	//if(ncolumns == 0) ncolumns = - static_cast<double>(sorted_hist[1].second) / std::log(f);
 	//double temp = std::log(p) / std::log(1-f);
 	//if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(std::ceil(temp)));
-	optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
+	std::size_t L1_norm = optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
-	fprintf(stdout, "%lu", nrows * ncolumns);//script-friendly output
 
 	std::vector<std::string> combinations;
 	std::vector<uint32_t> sketch(nrows * ncolumns);
@@ -134,6 +133,7 @@ int sense_main(int argc, char* argv[])
 	store_histogram(output_filename + ".shist.txt", sorted_hist);
 	store_cmb(output_filename + ".cmb.txt", combinations);
 	store_setmap(output_filename + ".bin", nrows, ncolumns, sketch);
+	fprintf(stdout, "%lu %lu", L1_norm, nrows * ncolumns);//script-friendly output
 	return EXIT_SUCCESS;
 }
 

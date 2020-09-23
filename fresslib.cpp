@@ -138,7 +138,7 @@ double estimate_error(const hist_t& sorted_histo, uint64_t nrows, uint64_t ncolu
 	return error;
 }
 
-void optimise_r_b(const hist_t& sorted_histo, double target_error, uint64_t& nrows, uint64_t& ncolumns)
+std::size_t optimise_r_b(const hist_t& sorted_histo, double target_error, uint64_t& nrows, uint64_t& ncolumns)
 {
 	std::size_t L1_norm = 0;
 	for(auto p : sorted_histo) L1_norm += p.first * p.second;
@@ -187,6 +187,7 @@ void optimise_r_b(const hist_t& sorted_histo, double target_error, uint64_t& nro
 		ncolumns = b;
 		std::cerr << "(r, b) = (" << nrows << ", " << ncolumns << ")\n";
 	}
+	return L1_norm;
 }
 
 void fill_sketch_small(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, uint32_t heavy_element, comb_t& str_combinations, sketch_t& sketch)

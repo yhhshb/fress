@@ -34,7 +34,7 @@ import subprocess
 import pandas
 from scipy.stats import skew
 
-sys.path.append("/home/igm/workspace/wgram") #directory to wgram repository
+sys.path.append("/media/shibuya/workspace/wgram") #directory to wgram repository
 import kmc
 
 fressdir = os.path.dirname(os.path.normpath(os.path.dirname(os.path.abspath(__file__))))

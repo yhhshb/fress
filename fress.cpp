@@ -10,6 +10,7 @@ void print_subcommands()
 	fprintf(stderr, "histogram\tCompute the k-mer frequency profile from a kmc database\n");
 	fprintf(stderr, "sense\tBuild a probabilistic map of the frequencies using a compressed sensing framework\n");
 	fprintf(stderr, "check\tCheck the ability of the map to assign frequencies\n");
+	fprintf(stderr, "info\tGet r, b and other useful information about one sketch\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Use the subcommand to see its documentation\n");
 }

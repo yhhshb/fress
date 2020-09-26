@@ -113,8 +113,12 @@ sketch_t load_setmap(std::string setmap_name, uint64_t& nrows, uint64_t& ncolumn
 	if(not skdump.is_open()) throw std::runtime_error("Unable to open sketch index file");
 	skdump.read(reinterpret_cast<char*>(&nrows), sizeof(decltype(nrows)));
 	skdump.read(reinterpret_cast<char*>(&ncolumns), sizeof(decltype(ncolumns)));
-	sketch_t setmap(nrows * ncolumns);
-	if(all) skdump.read(reinterpret_cast<char*>(setmap.data()), setmap.size() * sizeof(decltype(setmap)::value_type));
+	sketch_t setmap;
+	if(all) 
+	{
+		setmap.resize(nrows * ncolumns);
+		skdump.read(reinterpret_cast<char*>(setmap.data()), setmap.size() * sizeof(decltype(setmap)::value_type));
+	}
 	skdump.close();
 	return setmap;
 }

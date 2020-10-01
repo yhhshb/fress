@@ -356,3 +356,109 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 	//std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
 	return toRet;
 }
+
+void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms)
+{
+	CKMCFile kmcdb;
+	if (!kmcdb.OpenForListing(kmc_filename)) {
+		throw std::runtime_error("Unable to open the database\n");
+	}
+
+	unsigned int _kmer_length;
+	unsigned int _mode;
+	unsigned int _counter_size;
+	unsigned int _lut_prefix_length;
+	unsigned int _signature_len;
+	unsigned int _min_count;
+	unsigned long long _max_count;
+	unsigned long long _total_kmers;
+	kmcdb.Info(_kmer_length, _mode, _counter_size, _lut_prefix_length, _signature_len, _min_count, _max_count, _total_kmers);
+
+	CKmerAPI kmer(_kmer_length);
+	uint32_t counter = 0;
+	char str_kmer[_kmer_length + 1];
+	uint64_t hashes[nrows];
+	
+	while(kmcdb.ReadNextKmer(kmer, counter))
+	{
+		kmer.to_string(str_kmer);
+		NTM64(str_kmer, _kmer_length, nrows, hashes);
+		for(std::size_t i = 0; i < nrows; ++i)
+		{
+			std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
+			uint32_t oldval = cms[bucket_index];
+			cms[bucket_index] += counter;
+			if(cms[bucket_index] < oldval) throw std::runtime_error("CMS overflow");
+		}
+	}
+	kmcdb.Close();
+}
+
+std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const std::vector<uint32_t>& cms)
+{
+	using namespace std::chrono;
+	CKMCFile kmcdb;
+	if (!kmcdb.OpenForListing(kmc_filename)) {
+		throw std::runtime_error("Unable to open the database\n");
+	}
+
+	unsigned int _kmer_length;
+	unsigned int _mode;
+	unsigned int _counter_size;
+	unsigned int _lut_prefix_length;
+	unsigned int _signature_len;
+	unsigned int _min_count;
+	unsigned long long _max_count;
+	unsigned long long _total_kmers;
+	kmcdb.Info(_kmer_length, _mode, _counter_size, _lut_prefix_length, _signature_len, _min_count, _max_count, _total_kmers);
+
+	CKmerAPI kmer(_kmer_length);
+	uint32_t counter = 0;
+	char str_kmer[_kmer_length + 1];
+	uint64_t hashes[nrows];
+
+	std::size_t ncolls = 0;
+	std::size_t delta_sum = 0;
+	std::size_t delta_max = 0;
+	std::size_t nqueries = 0;
+	std::size_t bucket_index;
+
+	//std::size_t total_hash_time = 0;
+	//std::size_t total_time = 0;
+	while(kmcdb.ReadNextKmer(kmer, counter))
+	{
+		kmer.to_string(str_kmer);
+		//auto start = high_resolution_clock::now();
+		NTM64(str_kmer, _kmer_length, nrows, hashes);
+		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		uint32_t minimum = std::numeric_limits<uint32_t>::max();
+		for(std::size_t i = 0; i < nrows; ++i)
+		{
+			bucket_index = hashes[i] % ncolumns + i * ncolumns;
+			if(cms.at(bucket_index) < minimum) minimum = cms.at(bucket_index); 
+		}
+		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		++nqueries;
+		if(minimum != counter)
+		{
+			++ncolls;
+			auto delta = static_cast<std::size_t>(std::abs(static_cast<long long>(counter) - minimum));
+			delta_sum += delta;
+			if(delta_max < delta) delta_max = delta;
+		}
+	}
+	kmcdb.Close();
+	std::vector<std::string> toRet(4);
+	toRet[0] = std::to_string(ncolls);
+	toRet[1] = std::to_string(delta_sum);
+	toRet[2] = std::to_string(static_cast<double>(delta_sum)/ncolls);
+	toRet[3] = std::to_string(delta_max);
+	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
+	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
+	std::cerr << "Average delta: " << toRet[2] << "\n";
+	std::cerr << "MAX delta: " << toRet[3] << std::endl;
+	//std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
+	//std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
+	return toRet;
+
+}

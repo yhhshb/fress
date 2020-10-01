@@ -13,6 +13,7 @@ void print_subcommands()
 	fprintf(stderr, "cms\t build a count-min sketch dimensioned as a set-min sketch\n");
 	fprintf(stderr, "cmschk\t check a count-min sketch\n");
 	fprintf(stderr, "mphf\t build a BBHash MPHF + external frequency array\n");//No need for checking because error = 0
+	fprintf(stderr, "info\t get r, b and other useful information about one sketch\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Use the subcommand to see its documentation\n");
 }

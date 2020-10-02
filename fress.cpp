@@ -1,6 +1,9 @@
 #include <cstring>
 #include "fresslib.hpp"
 
+#include "BooPHF.hpp"
+#include "KMCRangeWrapper.hpp"
+
 extern "C" {
 #include "ketopt.h"
 }
@@ -12,7 +15,7 @@ void print_subcommands()
 	fprintf(stderr, "check\tCheck the ability of the map to assign frequencies\n");
 	fprintf(stderr, "cms\t build a count-min sketch dimensioned as a set-min sketch\n");
 	fprintf(stderr, "cmschk\t check a count-min sketch\n");
-	fprintf(stderr, "mphf\t build a BBHash MPHF + external frequency array\n");//No need for checking because error = 0
+	fprintf(stderr, "bbhash\t build a BBHash MPHF + external frequency array\n");//No need for checking because error = 0
 	fprintf(stderr, "info\t get r, b and other useful information about one sketch\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Use the subcommand to see its documentation\n");
@@ -77,6 +80,15 @@ void print_cmschk_help()
 	fprintf(stderr, "\nHuman-readable output on stderr, script-friendly output on stdout\n");
 }
 
+void print_bbhash_help()
+{
+	fprintf(stderr, "mphf options:\n");
+	fprintf(stderr, "\t-i\tinput kmc database (without extensions)\n");
+	fprintf(stderr, "\t-o\toutput name for mphf-related structures (mphf + arrayof frequencies)\n");
+	fprintf(stderr, "\t-h\tshow this help\n");
+	fprintf(stderr, "\nscript-friendly output on stdout\n");
+}
+
 int histogram_main(int argc, char* argv[])
 {
 	std::string kmc_filename, output_filename;
@@ -110,13 +122,12 @@ int sense_main(int argc, char* argv[])
 	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
 	uint64_t nrows = 0;
 	uint64_t ncolumns = 0;
-	//double f = 0.5;
 	double epsilon = 0.01;
 	
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:e:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:e:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
@@ -128,8 +139,6 @@ int sense_main(int argc, char* argv[])
 			nrows = std::stoul(opt.arg, nullptr, 10);
 		} else if (c == 'b') {
 			ncolumns = std::stoul(opt.arg, nullptr, 10);
-		//} else if (c == 'f') {//Expected fraction of empty buckets for the second heaviest element
-		//	f = std::stod(opt.arg);//0.5 is the optimal value that minimizes the space for all p
 		} else if (c == 'e') {
 			epsilon = std::stod(opt.arg);
 		} else if (c == 'h') {
@@ -231,13 +240,12 @@ int cms_main(int argc, char* argv[])
 	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
 	uint64_t nrows = 0;
 	uint64_t ncolumns = 0;
-	//double f = 0.5;
 	double epsilon = 0.01;
 	
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:e:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:e:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
@@ -249,8 +257,6 @@ int cms_main(int argc, char* argv[])
 			nrows = std::stoul(opt.arg, nullptr, 10);
 		} else if (c == 'b') {
 			ncolumns = std::stoul(opt.arg, nullptr, 10);
-		//} else if (c == 'f') {//Expected fraction of empty buckets for the second heaviest element
-		//	f = std::stod(opt.arg);//0.5 is the optimal value that minimizes the space for all p
 		} else if (c == 'e') {
 			epsilon = std::stod(opt.arg);
 		} else if (c == 'h') {
@@ -307,6 +313,68 @@ int cmschk_main(int argc, char* argv[])
 	return EXIT_SUCCESS;
 }
 
+int bbhash_main(int argc, char* argv[])
+{
+	typedef boomphf::SingleHashFunctor<uint64_t>  hasher_t;
+	std::string kmc_filename, output_filename;
+	
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
+	ketopt_t opt = KETOPT_INIT;
+	int c;
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:f:e:h", longopts)) >= 0)
+	{
+		if (c == 'i') {
+			kmc_filename = opt.arg;
+		} else if (c == 'o') {
+			output_filename = opt.arg;
+		} else if (c == 'h') {
+			print_bbhash_help();
+			return EXIT_SUCCESS;
+		} else {
+			fprintf(stderr, "Option (%c) not available\n", c);
+			print_bbhash_help();
+			return EXIT_FAILURE;
+		}
+	}
+
+	if(kmc_filename == "" or output_filename == "") throw std::runtime_error("-i and -o are mandatory arguments");
+	
+	CKMCFile kmcdb;
+	if (!kmcdb.OpenForListing(kmc_filename)) throw std::runtime_error("Unable to open the database\n");
+	uint64_t mask = (1ULL<<kmcdb.KmerLength()*2) - 1;
+	
+	KMCRangeWrapper kmcrw(kmcdb, mask);
+	boomphf::mphf<uint64_t, hasher_t> *bbhash = new boomphf::mphf<uint64_t, hasher_t>(kmcdb.KmerCount(), kmcrw, 1);
+
+	//saving bbhash
+	std::ofstream mphfout(output_filename + ".bbh", std::ios::binary);
+	bbhash->save(mphfout);
+	mphfout.close();
+
+	//creating external array
+	std::vector<uint32_t> payload(kmcdb.KmerCount());
+	
+	CKmerAPI kmer(kmcdb.KmerLength());
+	char str_kmer[kmcdb.KmerLength() + 1];
+	uint32_t counter = 0;
+	kmcdb.RestartListing();
+	while(kmcdb.ReadNextKmer(kmer, counter))
+	{
+		kmer.to_string(str_kmer);
+		uint64_t packed = pack_kmer(str_kmer, kmcdb.KmerLength(), mask);
+		//fprintf(stderr, "packed = %lu\n", packed);
+		uint64_t index = bbhash->lookup(packed); 
+		//fprintf(stderr, "index = %lu\n", index);
+		payload[index] = counter;
+	}
+	store_setmap(output_filename + ".bin", payload.size(), 1, payload);
+	fprintf(stdout, "%llu %lu", kmcdb.KmerCount(), payload.size());//script-friendly output
+	kmcdb.Close();
+	delete bbhash;
+	return EXIT_SUCCESS;
+}
+
+
 int main(int argc, char* argv[])
 {
 	ketopt_t om = KETOPT_INIT;
@@ -337,6 +405,8 @@ int main(int argc, char* argv[])
 		return cms_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "cmschk") == 0) {
 		return cmschk_main(argc - om.ind, &argv[om.ind]);
+	} else if (std::strcmp(argv[om.ind], "bbhash") == 0) {
+		return bbhash_main(argc - om.ind, &argv[om.ind]);
 	} else {
 		fprintf(stderr, "Missing subcommand\n\n");
 		print_subcommands();

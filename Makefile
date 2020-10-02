@@ -1,6 +1,6 @@
 all:executable
 
-CFLAGS=-Wall -O3
+CFLAGS=-Wno-unknown-pragmas -Wno-unused-variable -Wno-maybe-uninitialized -fopenmp -O3
 CXXFLAGS=$(CFLAGS) -std=c++17
 KMC_API_DIR = kmc_api
 PROG=fress
@@ -27,7 +27,7 @@ $(FRESS_OBJS) $(KMC_API_OBJS): %.o: %.cpp
 	$(CXX) -c $< $(CXXFLAGS) -o $@
 
 executable: $(KMC_API_OBJS) $(FRESS_OBJS)
-	$(CXX) -o $(PROG) $(FRESS_OBJS) $(KMC_API_OBJS)
+	$(CXX) -o $(PROG) $(FRESS_OBJS) $(KMC_API_OBJS) -lpthread
 
 clean:
 	rm $(PROG) 

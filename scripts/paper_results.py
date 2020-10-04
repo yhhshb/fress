@@ -35,6 +35,7 @@ import pandas
 from scipy.stats import skew
 
 sys.path.append("/media/shibuya/workspace/wgram") #directory to wgram repository
+sys.path.append("/home/igm/workspace/wgram")
 import kmc
 
 fressdir = os.path.dirname(os.path.normpath(os.path.dirname(os.path.abspath(__file__))))
@@ -59,15 +60,30 @@ def compress(path: str, files: list, compressed_path: str):
 
 def run_fress_sense(kmc_name: str, sketch_name: str, epsilon: float):
     out = subprocess.run([fress, "sense", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    if(out.returncode != 0): raise Exception("Error while building the sketch")
+    if(out.returncode != 0): raise Exception("Error while building the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
 def run_fress_check(kmc_name: str, sketch_name):
     out = subprocess.run([fress, "check", "-i", kmc_name, "-d", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    if(out.returncode != 0): raise Exception("Error while building the sketch")
+    if(out.returncode != 0): raise Exception("Error while checking the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
-def run_fress_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+def run_fress_cms(kmc_name: str, sketch_name: str, epsilon: float):
+    out = subprocess.run([fress, "cms", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    if(out.returncode != 0): raise Exception("Error while building the CM sketch {}".format(sketch_name))
+    return out.stdout.decode("utf-8").split()
+
+def run_fress_cmschk(kmc_name: str, sketch_name):
+    out = subprocess.run([fress, "cmschk", "-i", kmc_name, "-d", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    if(out.returncode != 0): raise Exception("Error while building the SM sketch {}".format(sketch_name))
+    return out.stdout.decode("utf-8").split()
+
+def run_fress_bbhash(kmc_name: str, sketch_name: str):
+    out = subprocess.run([fress, "bbhash", "-i", kmc_name, "-o", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    if(out.returncode != 0): raise Exception("Error while building the BBHash mphf {}".format(sketch_name))
+    return out.stdout.decode("utf-8").split('\n')[-1].split()
+
+def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
     kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
 
@@ -80,7 +96,7 @@ def run_fress_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outd
     sketch_path = os.path.join(fress_outdir, sketch_name)
     histo_path = os.path.join(fress_outdir, histo_name)
     cmb_path = os.path.join(fress_outdir, cmb_name)
-    bin_path = os.path.join(fress_outdir, bin_name)
+    #bin_path = os.path.join(fress_outdir, bin_name)
     arch_path = os.path.join(fress_outdir, arch_name)
 
     L1, dim = run_fress_sense(kmcdb, sketch_path, epsilon)
@@ -102,7 +118,55 @@ def run_fress_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outd
     os.remove(arch_path)
     return "{}\t{}\t{}\t{:.2f}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
 
-def run_fress_combination(description_file: str, output_file: str, kmc_outdir: str, fress_outdir: str, tmpdir: str, max_mem: int):
+def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
+    kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
+    bin_name = sketch_name + ".cms"
+    arch_name = sketch_name + ".gz"
+    sketch_path = os.path.join(fress_outdir, sketch_name)
+    arch_path = os.path.join(fress_outdir, arch_name)
+
+    L1, dim, max_val = run_fress_cms(kmcdb, sketch_path, epsilon)
+    L1 = int(L1)
+    dim = int(dim)
+    max_val = int(max_val)
+    ncolls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path)
+    ncolls = int(ncolls)
+    avgd = float(avgd)
+    maxd = int(maxd)
+
+    theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
+    compress(fress_outdir, [bin_name], arch_path)
+    cdim = os.stat(arch_path).st_size
+    os.remove(arch_path)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+
+def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+    kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    sketch_name = "{}k{}".format(filename, k)
+    mphf_name = sketch_name + ".bbh"
+    payload_name = sketch_name + ".pld"
+    arch_name = sketch_name + "_BBH.gz"
+    sketch_path = os.path.join(fress_outdir, sketch_name)
+    mphf_path = os.path.join(fress_outdir, mphf_name)
+    arch_path = os.path.join(fress_outdir, arch_name)
+
+    max_val, L0 = run_fress_bbhash(kmcdb, sketch_path)
+    max_val = int(max_val)
+    L0 = int(L0)
+
+    theoretical_udim = round(L0 * math.ceil(math.log(max_val, 2)) / 8) + os.stat(mphf_path).st_size
+    compress(fress_outdir, [mphf_name, payload_name], arch_path)
+    cdim = os.stat(arch_path).st_size
+    os.remove(arch_path)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, "NA", k, "NA", 0, 0, 0, 0, theoretical_udim, cdim)
+
+def run_combination(description_file: str, output_file: str, kmc_outdir: str, fress_outdir: str, tmpdir: str, max_mem: int, command):
     """Run fress for multiple parameters
 
     The input file must contain one line for each dataset in the following format:
@@ -120,11 +184,11 @@ def run_fress_combination(description_file: str, output_file: str, kmc_outdir: s
                 else: blocks[2] = blocks[2].replace(']', '')
                 dataset = blocks[0].strip()
                 ks = [int(block.strip()) for block in blocks[1].split(',')]
-                epsilons = [float(block.strip()) for block in blocks[2].split(',')]
+                epsilons = [float(block.strip()) for block in blocks[2].split(',')] if command != run_bbhash_for else [None]
                 for e in epsilons:
                     for k in ks:
                         sys.stderr.write("Now fressing {} with k = {} and epsilon = {}\n".format(dataset, k, e))
-                        oh.write(run_fress_for(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem) + "\n")
+                        oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem) + "\n")
                         oh.flush()
 
 if __name__ == "__main__":
@@ -133,24 +197,42 @@ if __name__ == "__main__":
     parser.add_argument("__default")
     subparsers = parser.add_subparsers(dest = "command")
 
-    parser_single = subparsers.add_parser("single", help="Run pipeline for fixed values. This generates only one line of the final result table")
-    parser_single.add_argument("file", help="fastx file to process", type=str)
-    parser_single.add_argument("-k", help="k-mer value", type=int)
-    parser_single.add_argument("-e", help="epsilon", type=float)
-    parser_single.add_argument("-c", help="kmc folder")
-    parser_single.add_argument("-f", help="fress output folder")
-    parser_single.add_argument("-w", help="tmp dir")
-    parser_single.add_argument("-m", help="max memory for kmc", type=int)
+    parser_sms = subparsers.add_parser("sms", help="Run set-min sketch pipeline for fixed values. This generates only one line of the final result table")
+    parser_sms.add_argument("file", help="fastx file to process", type=str)
+    parser_sms.add_argument("-k", help="k-mer value", type=int)
+    parser_sms.add_argument("-e", help="epsilon", type=float)
+    parser_sms.add_argument("-c", help="kmc folder")
+    parser_sms.add_argument("-f", help="fress output folder")
+    parser_sms.add_argument("-w", help="tmp dir")
+    parser_sms.add_argument("-m", help="max memory for kmc", type=int)
 
-    parser_multiple = subparsers.add_parser("multiple", help="Run pipeline for multiple values.")
-    parser_multiple.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
-    parser_multiple.add_argument("-o", help="output file (tsv format)")
-    parser_multiple.add_argument("-c", help="kmc folder")
-    parser_multiple.add_argument("-f", help="fress output folder")
-    parser_multiple.add_argument("-w", help="tmp dir")
-    parser_multiple.add_argument("-m", help="max memory for kmc", type=int)
+    parser_smsm = subparsers.add_parser("smsm", help="Run set-min sketch pipeline for multiple values.")
+    parser_smsm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_smsm.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_smsm.add_argument("-c", help="kmc folder", required=True)
+    parser_smsm.add_argument("-f", help="fress output folder", required=True)
+    parser_smsm.add_argument("-w", help="tmp dir", required=True)
+    parser_smsm.add_argument("-m", help="max memory for kmc", type=int)
+
+    parser_cmsm = subparsers.add_parser("cmsm", help="Run set-min sketch pipeline for multiple values.")
+    parser_cmsm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_cmsm.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_cmsm.add_argument("-c", help="kmc folder", required=True)
+    parser_cmsm.add_argument("-f", help="fress output folder", required=True)
+    parser_cmsm.add_argument("-w", help="tmp dir", required=True)
+    parser_cmsm.add_argument("-m", help="max memory for kmc", type=int)
+
+    parser_bbhm = subparsers.add_parser("bbhm", help="Run set-min sketch pipeline for multiple values.")
+    parser_bbhm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_bbhm.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_bbhm.add_argument("-c", help="kmc folder", required=True)
+    parser_bbhm.add_argument("-f", help="fress output folder", required=True)
+    parser_bbhm.add_argument("-w", help="tmp dir", required=True)
+    parser_bbhm.add_argument("-m", help="max memory for kmc", type=int)
 
     args = parser.parse_args(sys.argv)
-    if (args.command == "single"): print(run_fress_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
-    elif (args.command == "multiple"): run_fress_combination(args.file, args.o, args.c, args.f, args.w, args.m)
+    if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
+    elif (args.command == "smsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_sms_for)
+    elif (args.command == "cmsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_cms_for)
+    elif (args.command == "bbhm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_bbhash_for)
     else: parser.print_help(sys.stderr)

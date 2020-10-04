@@ -277,8 +277,8 @@ int cms_main(int argc, char* argv[])
 	std::vector<uint32_t> sketch(nrows * ncolumns);
 	fill_cms_sketch(kmc_filename, nrows, ncolumns, sketch);
 	
-	store_setmap(output_filename + ".bin", nrows, ncolumns, sketch);
-	fprintf(stdout, "%lu %lu", L1_norm, nrows * ncolumns);//script-friendly output
+	store_setmap(output_filename + ".cms", nrows, ncolumns, sketch);
+	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
 	return EXIT_SUCCESS;
 }
 
@@ -307,7 +307,7 @@ int cmschk_main(int argc, char* argv[])
 	}
 
 	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
-	auto setmap = load_setmap(cms_filename + ".bin", nrows, ncolumns, true);
+	auto setmap = load_setmap(cms_filename + ".cms", nrows, ncolumns, true);
 	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, setmap);
 	fprintf(stdout, "%s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str());//script-friendly output
 	return EXIT_SUCCESS;
@@ -344,7 +344,7 @@ int bbhash_main(int argc, char* argv[])
 	uint64_t mask = (1ULL<<kmcdb.KmerLength()*2) - 1;
 	
 	KMCRangeWrapper kmcrw(kmcdb, mask);
-	boomphf::mphf<uint64_t, hasher_t> *bbhash = new boomphf::mphf<uint64_t, hasher_t>(kmcdb.KmerCount(), kmcrw, 1);
+	boomphf::mphf<uint64_t, hasher_t> *bbhash = new boomphf::mphf<uint64_t, hasher_t>(kmcdb.KmerCount(), kmcrw, 1, 1.0);
 
 	//saving bbhash
 	std::ofstream mphfout(output_filename + ".bbh", std::ios::binary);
@@ -357,6 +357,7 @@ int bbhash_main(int argc, char* argv[])
 	CKmerAPI kmer(kmcdb.KmerLength());
 	char str_kmer[kmcdb.KmerLength() + 1];
 	uint32_t counter = 0;
+	uint32_t max_counter = 0;
 	kmcdb.RestartListing();
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
@@ -366,9 +367,10 @@ int bbhash_main(int argc, char* argv[])
 		uint64_t index = bbhash->lookup(packed); 
 		//fprintf(stderr, "index = %lu\n", index);
 		payload[index] = counter;
+		if(max_counter < counter) max_counter = counter;
 	}
-	store_setmap(output_filename + ".bin", payload.size(), 1, payload);
-	fprintf(stdout, "%llu %lu", kmcdb.KmerCount(), payload.size());//script-friendly output
+	store_setmap(output_filename + ".pld", payload.size(), 1, payload);
+	fprintf(stdout, "%u %lu", max_counter, payload.size());//script-friendly output
 	kmcdb.Close();
 	delete bbhash;
 	return EXIT_SUCCESS;

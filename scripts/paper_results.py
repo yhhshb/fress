@@ -116,7 +116,7 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     compress(fress_outdir, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{:.2f}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{:.2f}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, "NA")
 
 def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
@@ -142,7 +142,7 @@ def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     compress(fress_outdir, [bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, "NA")
 
 def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
     kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
@@ -160,11 +160,12 @@ def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmp
     max_val = int(max_val)
     L0 = int(L0)
 
-    theoretical_udim = round(L0 * math.ceil(math.log(max_val, 2)) / 8) + os.stat(mphf_path).st_size
+    mphf_size = os.stat(mphf_path).st_size
+    theoretical_udim = round(L0 * math.ceil(math.log(max_val, 2)) / 8) + mphf_size
     compress(fress_outdir, [mphf_name, payload_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, "NA", k, "NA", 0, 0, 0, 0, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\t{}".format(filename, "NA", k, "NA", 0, 0, 0, 0, theoretical_udim, cdim, mphf_size)
 
 def run_combination(description_file: str, output_file: str, kmc_outdir: str, fress_outdir: str, tmpdir: str, max_mem: int, command):
     """Run fress for multiple parameters

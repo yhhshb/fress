@@ -1,25 +1,6 @@
 #!/usr/bin/python3
 
-"""
-Input: A list of fasta/fastq to be sketched, a range (k_min, k_max) of k-mer lengths, epsilon, a working directory
-Computations:
-- for each dataset and k-mer value apply kmc
-- get the L1 norm of the kmc databases
-- get the skewness of the k-mer spectrum
-- sketch the resulting kmc databases with fress sense
-- run fress check to have (sum of errors, average error, max error)
-- get the (theoretical) uncompressed size for each fress sketch
-- get the compressed size of each fress sketch
-Output:
-- A big table in tsv format with the following columns:
-
-dataset name | k-value | spectrum skew | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
-
-- and relative plots:
-
-k-value as x and (skew, size) as y
-
-----------------------------------------------------------------
+"""Run experiments for the SMS paper
 
 This script requires the kmc.py module of the wgram repository (https://github.com/yhhshb/wgram)
 Remember to put the install kmc in the wgram folder by running download_tools.sh and install_tools.sh
@@ -84,6 +65,31 @@ def run_fress_bbhash(kmc_name: str, sketch_name: str):
     return out.stdout.decode("utf-8").split('\n')[-1].split()
 
 def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+    """Build and check one single SM sketch
+
+    Input: 
+    - one fasta/fastq to be sketched
+    - the k-mer length
+    - the approximation factor epsilon
+    - a working directory
+    - the output directory for kmc databases
+    - the output directory for the sketch
+    - a temporary directory
+    - maximum allowed memory
+
+    Computations:
+    - for each dataset and k-mer value apply kmc
+    - get the L1 norm of the kmc databases
+    - get the skewness of the k-mer spectrum
+    - sketch the resulting kmc databases with fress sense
+    - run fress check to have (sum of errors, average error, max error)
+    - get the (theoretical) uncompressed size for each fress sketch
+    - get the compressed size of each fress sketch
+
+    Output:
+    - A big table in tsv format with the following columns:
+    dataset name | epsilon | k-value | spectrum skew | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
+    """
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
     kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
 
@@ -116,9 +122,14 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     compress(fress_outdir, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{:.2f}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, "NA")
+    return "{}\t{}\t{}\t{:.2f}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
 
 def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+    """Build and check one single CM sketch
+
+    See run_sms_for documetantion.
+    Note: the skewness parameter is not used here and defaults to "NA"
+    """
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
     kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
 
@@ -142,9 +153,16 @@ def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     compress(fress_outdir, [bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, "NA")
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
 
 def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+    """Build and check BBHash MPHF with = 1
+
+    See run_sms_for documentation about input parameters.
+    Output:
+    - A big table in tsv format with the following columns:
+    dataset name | k-value | mphf uncompressed size | total uncompressed size | total compressed size
+    """
     kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
 
     filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
@@ -165,7 +183,7 @@ def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmp
     compress(fress_outdir, [mphf_name, payload_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}\t{}".format(filename, "NA", k, "NA", 0, 0, 0, 0, theoretical_udim, cdim, mphf_size)
+    return "{}\t{}\t{}\t{}\t{}".format(filename, k, mphf_size, theoretical_udim, cdim)
 
 def run_combination(description_file: str, output_file: str, kmc_outdir: str, fress_outdir: str, tmpdir: str, max_mem: int, command):
     """Run fress for multiple parameters

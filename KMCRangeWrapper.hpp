@@ -22,7 +22,7 @@ const uint8_t seq_nt4_table[256] = { // translate ACGT to 0123
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
 };
 
-uint64_t pack_kmer(char* kmer, std::size_t k, uint64 mask)
+uint64_t pack_kmer(char* kmer, std::size_t k, uint64_t mask)
 {
 	uint64_t pval = 0;
 	for (std::size_t i = 0; i < k; ++i) pval = (pval << 2 | seq_nt4_table[(uint8_t)kmer[i]]) & mask;

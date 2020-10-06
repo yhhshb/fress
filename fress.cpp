@@ -341,7 +341,10 @@ int bbhash_main(int argc, char* argv[])
 	
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) throw std::runtime_error("Unable to open the database\n");
-	uint64_t mask = (1ULL<<kmcdb.KmerLength()*2) - 1;
+	if (kmcdb.KmerLength() > 32) throw std::length_error("Maximum value of k = 32");
+	uint8_t shift = static_cast<uint8_t>(2*kmcdb.KmerLength());
+	uint64_t mask = (shift == 64 ? 0ULL : (1ULL<<shift)) - 1;
+	fprintf(stderr, "k-mer length = %u, mask = %lu\n", kmcdb.KmerLength(), mask);
 	
 	KMCRangeWrapper kmcrw(kmcdb, mask);
 	boomphf::mphf<uint64_t, hasher_t> *bbhash = new boomphf::mphf<uint64_t, hasher_t>(kmcdb.KmerCount(), kmcrw, 1, 1.0);

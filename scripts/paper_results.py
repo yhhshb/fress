@@ -91,9 +91,11 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     dataset name | epsilon | k-value | spectrum skew | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
     """
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
-
     filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
     histo_name = sketch_name + ".shist.txt"
     cmb_name = sketch_name + ".cmb.txt"
@@ -131,9 +133,11 @@ def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     Note: the skewness parameter is not used here and defaults to "NA"
     """
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
-
     filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
     bin_name = sketch_name + ".cms"
     arch_name = sketch_name + ".gz"
@@ -163,9 +167,11 @@ def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmp
     - A big table in tsv format with the following columns:
     dataset name | k-value | mphf uncompressed size | total uncompressed size | total compressed size
     """
-    kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
-
     filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+
     sketch_name = "{}k{}".format(filename, k)
     mphf_name = sketch_name + ".bbh"
     payload_name = sketch_name + ".pld"

@@ -292,6 +292,7 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 	bucket_t intersection, dummy;
 
 	std::size_t ncolls = 0;
+	std::size_t ntrue_colls = 0;
 	std::size_t delta_sum = 0;
 	std::size_t delta_max = 0;
 	std::size_t nqueries = 0;
@@ -337,6 +338,7 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 				auto smallest_itr = std::max_element(dummy.cbegin(), dummy.cend());
 				std::size_t idx = std::distance(dummy.cbegin(), smallest_itr);
 				uint32_t qval = intersection.at(idx);
+				if(qval != counter) ++ntrue_colls;
 				auto delta = static_cast<std::size_t>(std::abs(static_cast<long long>(counter) - qval));
 				delta_sum += delta;
 				if(delta_max < delta) delta_max = delta;
@@ -344,12 +346,14 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 		}
 	}
 	kmcdb.Close();
-	std::vector<std::string> toRet(4);
+	std::vector<std::string> toRet(5);
 	toRet[0] = std::to_string(ncolls);
-	toRet[1] = std::to_string(delta_sum);
-	toRet[2] = std::to_string(static_cast<double>(delta_sum)/ncolls);
-	toRet[3] = std::to_string(delta_max);
+	toRet[1] = std::to_string(ntrue_colls);
+	toRet[2] = std::to_string(delta_sum);
+	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
+	toRet[4] = std::to_string(delta_max);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
+	std::cerr << "Total number of collisions which result in a different frequency" << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
 	std::cerr << "Average delta: " << toRet[2] << "\n";
 	std::cerr << "MAX delta: " << toRet[3] << std::endl;
@@ -452,11 +456,12 @@ std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrow
 		}
 	}
 	kmcdb.Close();
-	std::vector<std::string> toRet(4);
+	std::vector<std::string> toRet(5);
 	toRet[0] = std::to_string(ncolls);
-	toRet[1] = std::to_string(delta_sum);
-	toRet[2] = std::to_string(static_cast<double>(delta_sum)/ncolls);
-	toRet[3] = std::to_string(delta_max);
+	toRet[1] = std::to_string(ncolls);
+	toRet[2] = std::to_string(delta_sum);
+	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
+	toRet[4] = std::to_string(delta_max);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
 	std::cerr << "Average delta: " << toRet[2] << "\n";

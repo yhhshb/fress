@@ -200,7 +200,7 @@ int check_main(int argc, char* argv[])
 	auto frequency_sets = load_cmb_for_query(map_filename + ".cmb.txt");
 	auto setmap = load_setmap(map_filename + ".bin", nrows, ncolumns, true);
 	auto rvals = check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
-	fprintf(stdout, "%s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str());//script-friendly output
+	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
 
@@ -231,6 +231,7 @@ int info_main(int argc, char* argv[])
 	auto setmap = load_setmap(map_filename + ".bin", nrows, ncolumns, false);
 	std::cerr << "r = " << nrows << " | b = " << ncolumns << "\n";
 	std::cerr << "total dimension = " << nrows * ncolumns << "\n";
+	fprintf(stdout, "%lu %lu %lu", nrows, ncolumns, nrows*ncolumns);
 	return EXIT_SUCCESS;
 }
 
@@ -309,7 +310,7 @@ int cmschk_main(int argc, char* argv[])
 	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
 	auto setmap = load_setmap(cms_filename + ".cms", nrows, ncolumns, true);
 	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, setmap);
-	fprintf(stdout, "%s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str());//script-friendly output
+	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
 

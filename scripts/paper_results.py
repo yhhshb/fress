@@ -49,6 +49,11 @@ def run_fress_check(kmc_name: str, sketch_name):
     if(out.returncode != 0): raise Exception("Error while checking the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
+def run_fress_info(sketch_name):
+    out = subprocess.run([fress, "info", "-d", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    if(out.returncode != 0): raise Exception("Error while getting info about {}".format(sketch_name))
+    return out.stdout.decode("utf-8").split()
+
 def run_fress_cms(kmc_name: str, sketch_name: str, epsilon: float):
     out = subprocess.run([fress, "cms", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while building the CM sketch {}".format(sketch_name))
@@ -110,8 +115,9 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     L1, dim = run_fress_sense(kmcdb, sketch_path, epsilon)
     L1 = int(L1)
     dim = int(dim)
-    ncolls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path)
     ncolls = int(ncolls)
+    ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
 
@@ -124,7 +130,7 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     compress(fress_outdir, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{:.2f}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
 
 def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
     """Build and check one single CM sketch
@@ -148,8 +154,9 @@ def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     L1 = int(L1)
     dim = int(dim)
     max_val = int(max_val)
-    ncolls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path)
     ncolls = int(ncolls)
+    ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
 
@@ -157,7 +164,7 @@ def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     compress(fress_outdir, [bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{:.2f}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
 
 def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
     """Build and check BBHash MPHF with = 1
@@ -190,6 +197,32 @@ def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmp
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
     return "{}\t{}\t{}\t{}\t{}".format(filename, k, mphf_size, theoretical_udim, cdim)
+
+def run_sms_check(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, dummy1=None, dummy2=None):
+    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+
+    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
+    sketch_path = os.path.join(fress_outdir, sketch_name)
+
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path)
+    ncolls = int(ncolls)
+    ntrue_colls = int(ntrue_colls)
+    avgd = float(avgd)
+    maxd = int(maxd)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ncolls, ntrue_colls, sod, avgd, maxd)
+
+def run_sms_info(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, dummy1=None, dummy2=None):
+    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
+    filename, _, _, _, _ = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
+    sketch_path = os.path.join(fress_outdir, sketch_name)
+
+    R, B, RB = run_fress_info(sketch_path)
+    R = int(R)
+    B = int(B)
+    RB = int(RB)
+    return "{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, R, B, RB)
 
 def run_combination(description_file: str, output_file: str, kmc_outdir: str, fress_outdir: str, tmpdir: str, max_mem: int, command):
     """Run fress for multiple parameters
@@ -255,9 +288,23 @@ if __name__ == "__main__":
     parser_bbhm.add_argument("-w", help="tmp dir", required=True)
     parser_bbhm.add_argument("-m", help="max memory for kmc", type=int)
 
+    parser_checkonly = subparsers.add_parser("check", help="Run check for set-min sketches produced by a pipeline")
+    parser_checkonly.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_checkonly.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_checkonly.add_argument("-c", help="kmc folder", required=True)
+    parser_checkonly.add_argument("-f", help="fress output folder", required=True)
+
+    parser_info = subparsers.add_parser("info", help="Run info for set-min sketches produced by a pipeline")
+    parser_info.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_info.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_info.add_argument("-c", help="kmc folder", required=True)
+    parser_info.add_argument("-f", help="fress output folder", required=True)
+
     args = parser.parse_args(sys.argv)
     if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
     elif (args.command == "smsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_sms_for)
     elif (args.command == "cmsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_cms_for)
     elif (args.command == "bbhm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_bbhash_for)
+    elif (args.command == "check"): run_combination(args.file, args.o, args.c, args.f, None, None, run_sms_check)
+    elif (args.command == "info"): run_combination(args.file, args.o, args.c, args.f, None, None, run_sms_info)
     else: parser.print_help(sys.stderr)

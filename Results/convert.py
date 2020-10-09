@@ -59,5 +59,5 @@ joined["tavg"] = joined["ssod"] / joined["ntrue"]
 joined["savg"] = joined["savg"].map(lambda x: '{:.2f}'.format(x))
 joined["cavg"] = joined["cavg"].map(lambda x: '{:.2f}'.format(x))
 joined["tavg"] = joined["tavg"].map(lambda x: '{:.2f}'.format(x))
-joined = joined[["name", "epsilon", "k", "kmc", "R", "B", "RB", "ssize", "scsize", "threshold", "ncolls", "ntrue", "ssod", "savg", "tavg", "smax", "csod", "cavg", "cmax", "csize", "ccsize"]]
+joined = joined[["name", "epsilon", "k", "kmc", "R", "B", "RB", "ssize", "scsize", "threshold", "ncolls", "ntrue", "ssod", "savg", "tavg", "smax", "csod", "cavg", "cmax", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
 joined.to_csv("fress_all.csv", header=True, index=False)

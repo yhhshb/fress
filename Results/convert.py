@@ -56,8 +56,9 @@ joined = pd.merge(joined, cmsdf, on=["name", "epsilon", "k", "threshold"], how="
 joined = pd.merge(joined, kmcdf, on=["name", "k"], how="outer")
 joined = pd.merge(joined, bbhdf, on=["name", "k"], how="outer")
 joined["tavg"] = joined["ssod"] / joined["ntrue"]
+joined["cntrue"] = (round(joined["csod"] / joined["cavg"])).astype(int)
 joined["savg"] = joined["savg"].map(lambda x: '{:.2f}'.format(x))
 joined["cavg"] = joined["cavg"].map(lambda x: '{:.2f}'.format(x))
 joined["tavg"] = joined["tavg"].map(lambda x: '{:.2f}'.format(x))
-joined = joined[["name", "epsilon", "k", "kmc", "R", "B", "RB", "ssize", "scsize", "threshold", "ncolls", "ntrue", "ssod", "savg", "tavg", "smax", "csod", "cavg", "cmax", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
+joined = joined[["name", "epsilon", "k", "R", "B", "threshold", "ntrue", "ssod", "savg", "tavg", "smax", "cntrue", "csod", "cavg", "cmax", "kmc", "ssize", "scsize", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
 joined.to_csv("fress_all.csv", header=True, index=False)

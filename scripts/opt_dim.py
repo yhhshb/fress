@@ -11,18 +11,18 @@ import functools
 
 def L1_error(histo, r, b):
     coll_probs = [1-(1-1/b)**c for f, c in histo]
-    sys.stderr.write(str(coll_probs) + '\n')
+    #sys.stderr.write(str(coll_probs) + '\n')
     F = len(histo)    
     error = 0
     for i in range(F):
         rs = 0
         for j in range(i+1, F):
             diff = abs(histo[j][0] - histo[i][0])
-            rs += (coll_probs[j])**r * diff #* jmax_probs[j]**r
+            rs += (coll_probs[j])**r * diff
         error += histo[i][1] * rs
     return error
 
-def optimize(histo, e, r, b):
+def optimize_by_heuristic(histo, e, r, b):
     L1 = sum([f * c for f, c in histogram])
     thr = e*L1
     
@@ -58,6 +58,19 @@ def optimize(histo, e, r, b):
         b = len(histo)
     return r, b
 
+def optimize_by_theorem(histo, e, r, b):
+    rb = 2**63
+    oldrb = rb + 1
+    r = 0
+    b = 0
+    while(oldrb > rb):
+        oldrb = rb
+        r += 1
+        b = histo[1][1] * math.exp(math.log(1/e)/r)
+        rb = r * b
+    r -= 1
+    return r, math.ceil(histo[1][1] * math.exp(math.log(1/e)/r))
+
 def str2bool(v):
     if isinstance(v, bool): return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'): return True
@@ -79,5 +92,8 @@ if __name__ == "__main__":
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
     histogram.sort(key=lambda tup: tup[1], reverse=True)
-    optr, optb = optimize(histogram, args.epsilon, args.nrows, args.ncolumns)
-    print("Optimal (r, b) = ({}, {})".format(optr, optb))
+    hoptr, hoptb = optimize_by_heuristic(histogram, args.epsilon, args.nrows, args.ncolumns)
+    toptr, toptb = optimize_by_theorem(histogram, args.epsilon, args.nrows, args.ncolumns)
+    print("Optimal by my heuristic (r, b) = ({}, {})".format(hoptr, hoptb))
+    print("Optimal by theorem (r, b) = ({}, {})".format(toptr, toptb))
+    print("Using dimensions given by theorem, the error is: {}".format(round(L1_error(histogram, toptr, toptb))))

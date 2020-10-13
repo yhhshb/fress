@@ -19,12 +19,15 @@ kmcdf = pd.read_table("kmc_pipeline.out.tsv", sep='\t', header=None)
 cmsdf = pd.read_table("cms_pipeline.out.tsv", sep='\t', header=None)
 bbhdf = pd.read_table("bbhash_pipeline.out.tsv", sep='\t', header=None)
 
+sizes = pd.read_csv("datasets_info.csv")
+
 smsdf.columns = ["name", "epsilon", "k", "skew", "threshold", "ssod", "savg", "smax", "ssize", "scsize"]
 checkdf.columns = ["name", "epsilon", "k", "ncolls", "ntrue", "sod", "avg", "max"]
 infodf.columns = ["name", "epsilon", "k", "R", "B", "RB"]
 kmcdf.columns = ["name", "k", "kmc"]
 cmsdf.columns = ["name", "epsilon", "k", "skew", "threshold", "csod", "cavg", "cmax", "csize", "ccsize"]
 bbhdf.columns = ["name", "k", "mphfsize", "bsize", "bcsize"]
+sizes.columns = ["type", "name", "k", "L0", "L1", "Labels", "KMC"]
 
 smsdf = smsdf.drop("skew", 1)
 smsdf["name"] = smsdf["name"].map(lambda x: "USakai" if x == "U_Sakai" else x)
@@ -55,10 +58,14 @@ joined = functools.reduce(lambda  left,right: pd.merge(left, right, on=["name", 
 joined = pd.merge(joined, cmsdf, on=["name", "epsilon", "k", "threshold"], how="outer")
 joined = pd.merge(joined, kmcdf, on=["name", "k"], how="outer")
 joined = pd.merge(joined, bbhdf, on=["name", "k"], how="outer")
+joined = pd.merge(joined, sizes, on=["name", "k"], how="outer")
 joined["tavg"] = joined["ssod"] / joined["ntrue"]
 joined["cntrue"] = (round(joined["csod"] / joined["cavg"])).astype(int)
+joined["ntrue"] = round(joined["ntrue"] / joined["L0"] * 100)
+joined["cntrue"] = round(joined["csod"] / (joined["cavg"] * joined["L0"]) * 100)
 joined["savg"] = joined["savg"].map(lambda x: '{:.2f}'.format(x))
 joined["cavg"] = joined["cavg"].map(lambda x: '{:.2f}'.format(x))
 joined["tavg"] = joined["tavg"].map(lambda x: '{:.2f}'.format(x))
 joined = joined[["name", "epsilon", "k", "R", "B", "threshold", "ntrue", "ssod", "savg", "tavg", "smax", "cntrue", "csod", "cavg", "cmax", "kmc", "ssize", "scsize", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
+joined = joined[joined.k != 8]
 joined.to_csv("fress_all.csv", header=True, index=False)

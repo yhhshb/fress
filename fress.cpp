@@ -153,9 +153,6 @@ int sense_main(int argc, char* argv[])
 
 	if(kmc_filename == "" or output_filename == "") throw std::runtime_error("-i and -o are mandatory arguments");
 	if(sorted_hist.size() == 0) sorted_hist = sort_histogram(compute_histogram(kmc_filename));
-	//if(ncolumns == 0) ncolumns = - static_cast<double>(sorted_hist[1].second) / std::log(f);
-	//double temp = std::log(p) / std::log(1-f);
-	//if(nrows == 0) nrows = std::max(static_cast<std::size_t>(1), static_cast<std::size_t>(std::ceil(temp)));
 	std::size_t L1_norm = optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);

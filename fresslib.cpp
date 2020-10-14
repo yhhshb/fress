@@ -152,7 +152,7 @@ std::size_t optimise_r_b(const hist_t& sorted_histo, double target_error, uint64
 	uint64_t r = nrows;
 	uint64_t  b = ncolumns;
 	bool cr = false, cb = false; 
-	if(b == 0) b = sorted_histo[1].second * 1.443;
+	if(b == 0) b = sorted_histo.at(1).second * 1.443;
 	else cb = true;
 	if(r == 0) r = 1;
 	else cr = true;

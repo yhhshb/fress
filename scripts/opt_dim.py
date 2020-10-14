@@ -23,7 +23,7 @@ def L1_error(histo, r, b):
     return error
 
 def optimize_by_heuristic(histo, e, r, b):
-    L1 = sum([f * c for f, c in histogram])
+    L1 = sum([f * c for f, c in histo])
     thr = e*L1
     
     constr = constb = False

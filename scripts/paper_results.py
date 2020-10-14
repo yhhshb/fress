@@ -249,6 +249,91 @@ def run_combination(description_file: str, output_file: str, kmc_outdir: str, fr
                         oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem) + "\n")
                         oh.flush()
 
+def read_histo(histo_name: str):
+    histogram = list()
+    with open(args.histo, "r") as hf:
+        for line in hf:
+            histogram.append(tuple(map(int, line.split('\t'))))
+    return histogram
+
+def L1_error(histo, r, b, coll_probs):
+    F = len(histo)
+    error = 0
+    for i in range(F):
+        rs = 0
+        for j in range(i+1, F):
+            diff = abs(histo[j][0] - histo[i][0])
+            rs += (coll_probs[j])**r * diff
+        error += histo[i][1] * rs
+    return error
+
+def optimize_by_heuristic(histo, e, r, b):
+    L1 = sum([f * c for f, c in histo])
+    thr = e*L1
+    constr = constb = False
+    if b == 0 or b == None: b = int(math.ceil(-histo[1][1] / math.log(0.5)))
+    else: constb = True
+    if r == 0 or r == None: r = int(math.ceil(math.log(e) / math.log(0.5)))
+    else: constr = True
+
+    coll_probs = [1-(1-1/b)**c for f, c in histo]
+
+    error = L1_error(histo, r, b, coll_probs)
+    sys.stderr.write("Threshold = {} for a L1 norm of {}\n".format(thr, L1))
+    sys.stderr.write("(r, b) = ({}, {}) -> error = {}\n".format(r, b, round(error)))
+    if constr and constb and error > thr: raise RuntimeError("r = {} and b = {} do not allow to achieve the desired epsilon but only: {}".format(r, b, error/L1))
+    old_r = r
+    while(error > thr):#increase r to the maximum value to achieve the desired threshold
+        r += 1
+        error = L1_error(histo, r, b, coll_probs)
+    dim = r*b#total number of cells
+    if constb:#if b was set by the user we are done
+        return r, b
+    elif constr:#reduce r to old_r
+        r = old_r
+    else:#reduce r and increase b as long as the error is below threshold
+        while(error < thr):
+            r -= 1
+            b = math.ceil(dim/r)
+            error = L1_error(histo, r, b, coll_probs)
+            print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
+        r += 1
+    b = math.ceil(dim/r)#set b to maintain constant memory
+    if b < len(histo):
+        sys.stderr.write("Warning, b is smaller than the total number of labels, setting to that value\n")
+        b = len(histo)
+    return r, b
+
+def optimize_by_theorem(histo, e, r, b):
+    rb = 2**63
+    oldrb = rb + 1
+    r = 0
+    b = 0
+    while(oldrb > rb):
+        oldrb = rb
+        r += 1
+        b = histo[1][1] * math.exp(math.log(1/e)/r)
+        rb = r * b
+    r -= 1
+    return r, math.ceil(histo[1][1] * math.exp(math.log(1/e)/r))
+
+def opt_dim_main(histo_name, epsilon, r, b, to_collapse):
+    histo = read_histo(histo_name)
+    histo.sort(key=lambda tup: tup[1], reverse=True)
+    unavoidable_error = 0
+    if (to_collapse > 1):
+        merged = histo[:to_collapse]
+        new_count = sum([c for _, c in merged])
+        new_frequency = sum([f * c for f, c in merged]) / new_count
+        unavoidable_error = sum([abs(new_frequency - f) * c for f, c in merged])
+        histo = [(new_frequency, new_frequency)] + histo[to_collapse:]
+    hoptr, hoptb = optimize_by_heuristic(histo, args.epsilon, args.nrows, args.ncolumns)
+    toptr, toptb = optimize_by_theorem(histo, args.epsilon, args.nrows, args.ncolumns)
+    coll_probs = [1-(1-1/toptb)**c for f, c in histo]
+    sys.stderr.write("Unavoidable error = {}\n".format(unavoidable_error))
+    sys.stderr.write("Optimal by my heuristic (r, b) = ({}, {})\n".format(hoptr, hoptb))
+    sys.stderr.write("Optimal by theorem (r, b) = ({}, {}) with error = {}\n".format(toptr, toptb, round(L1_error(histo, toptr, toptb, coll_probs))))
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -300,6 +385,13 @@ if __name__ == "__main__":
     parser_info.add_argument("-c", help="kmc folder", required=True)
     parser_info.add_argument("-f", help="fress output folder", required=True)
 
+    parser_optdim = subparsers.add_parser("optdim", help="Dimension the sketch for given a histogram")
+    parser_optdim.add_argument("histo", help="Histogram")
+    parser_optdim.add_argument("-e", "--epsilon", help="maximum error rate", type=float, required=True)
+    parser_optdim.add_argument("-r", "--nrows", help="number of rows", type=int)
+    parser_optdim.add_argument("-b", "--ncolumns", help="number of columns", type=int)
+    parser_optdim.add_argument("-m", "--merge", help="Merge the first columns of the histogram to augment the skewness", type=int, default=1)
+
     args = parser.parse_args(sys.argv)
     if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
     elif (args.command == "smsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_sms_for)
@@ -307,4 +399,5 @@ if __name__ == "__main__":
     elif (args.command == "bbhm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_bbhash_for)
     elif (args.command == "check"): run_combination(args.file, args.o, args.c, args.f, None, None, run_sms_check)
     elif (args.command == "info"): run_combination(args.file, args.o, args.c, args.f, None, None, run_sms_info)
+    elif (args.command == "optdim"): opt_dim_main(args.histo, args.epsilon, args.nrows, args.ncolumns, args.merge)
     else: parser.print_help(sys.stderr)

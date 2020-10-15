@@ -172,11 +172,14 @@ int check_main(int argc, char* argv[])
 {
 	std::string kmc_filename, map_filename;
 	uint64_t nrows, ncolumns;
+	uint8_t additional_opts = 0;
+	std::size_t merged = 0;
+	double freq = 0.0;
 
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:f:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
@@ -185,6 +188,12 @@ int check_main(int argc, char* argv[])
 		} else if (c == 'h') {
 			print_check_help();
 			return EXIT_SUCCESS;
+		} else if (c == 'g') {
+			merged = std::stoul(opt.arg, nullptr, 0);
+			++additional_opts;
+		} else if (c == 'f') {
+			freq = std::stod(opt.arg);
+			++additional_opts;
 		} else {
 			fprintf(stderr, "Option (%c) not available\n", c);
 			print_check_help();
@@ -193,11 +202,20 @@ int check_main(int argc, char* argv[])
 	}
 
 	if(kmc_filename == "" or map_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
-	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sort_histogram(load_histogram(map_filename + ".shist.txt")));
+	if(additional_opts == 1) throw std::runtime_error("-g and -f must be used together at the same time");
+	auto sorted_histogram = sort_histogram(load_histogram(map_filename + ".shist.txt"));
+	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_histogram);
 	auto frequency_sets = load_cmb_for_query(map_filename + ".cmb.txt");
 	auto setmap = load_setmap(map_filename + ".bin", nrows, ncolumns, true);
-	auto rvals = check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
-	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
+	std::vector<std::string> rvals;
+	if(additional_opts == 0) rvals = check_sketch(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx);
+	else 
+	{
+		std::vector<uint32_t> mcols(merged);
+		for(std::size_t i = 0; i < merged; ++i) mcols[i] = sorted_histogram.at(i).first;
+		rvals = check_sketch_merge(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx, mcols, freq);
+	}
+	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output	
 	return EXIT_SUCCESS;
 }
 
@@ -288,7 +306,7 @@ int cmschk_main(int argc, char* argv[])
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:d:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;

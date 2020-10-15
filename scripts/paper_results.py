@@ -39,13 +39,17 @@ def compress(path: str, files: list, compressed_path: str):
     finally:
         zf.close()
 
-def run_fress_sense(kmc_name: str, sketch_name: str, epsilon: float):
-    out = subprocess.run([fress, "sense", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+def run_fress_histogram(kmc_name: str, histo_name: str):
+    out = subprocess.run([fress, "histogram", "-i", kmc_name, "-o", histo_name])
+    if(out.returncode != 0): raise Exception("Error while computing the histogram for {}".format(kmc_name))
+
+def run_fress_sense(kmc_name: str, sketch_name: str, epsilon: float, r: int = None, b: int = None):
+    out = subprocess.run([fress, "sense", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)] + (["-r", str(r)] if r else []) + (["-b", str(b)] if r else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while building the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
-def run_fress_check(kmc_name: str, sketch_name):
-    out = subprocess.run([fress, "check", "-i", kmc_name, "-d", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+def run_fress_check(kmc_name: str, sketch_name, merged = 0, new_freq = 0):
+    out = subprocess.run([fress, "check", "-i", kmc_name, "-d", sketch_name] + (["-g", str(merged)] if merged else []) + (["-f", str(new_freq)] if new_freq else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while checking the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
@@ -224,13 +228,19 @@ def run_sms_info(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdi
     RB = int(RB)
     return "{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, R, B, RB)
 
-def run_combination(description_file: str, output_file: str, kmc_outdir: str, fress_outdir: str, tmpdir: str, max_mem: int, command):
+def run_combination(args, command):
     """Run fress for multiple parameters
 
     The input file must contain one line for each dataset in the following format:
     <dataset name> [k1, ..., kn] [epsilon1, ..., epsilon<m>]
     one line for each combination of parameter will be generated.
     """
+    description_file = args.file
+    output_file = args.o
+    kmc_outdir = args.c
+    fress_outdir = args.f
+    tmpdir = args.w
+    max_mem = args.m
     with open(output_file, "w") as oh:
         with open(description_file, "r") as dh:
             for line in dh:
@@ -246,17 +256,18 @@ def run_combination(description_file: str, output_file: str, kmc_outdir: str, fr
                 for e in epsilons:
                     for k in ks:
                         sys.stderr.write("Now fressing {} with k = {} and epsilon = {}\n".format(dataset, k, e))
-                        oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem) + "\n")
+                        if (command != run_merged_sms_for): oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem) + "\n")
+                        else: oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem, args.g) + "\n")
                         oh.flush()
 
 def read_histo(histo_name: str):
     histogram = list()
-    with open(args.histo, "r") as hf:
+    with open(histo_name, "r") as hf:
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
     return histogram
 
-def L1_error(histo, r, b, coll_probs):
+def L1_error(histo: list, r: int, b: int, coll_probs: list):
     F = len(histo)
     error = 0
     for i in range(F):
@@ -267,7 +278,7 @@ def L1_error(histo, r, b, coll_probs):
         error += histo[i][1] * rs
     return error
 
-def optimize_by_heuristic(histo, e, r, b):
+def optimize_by_heuristic(histo: list, e: float, r: int, b: int):
     L1 = sum([f * c for f, c in histo])
     thr = e*L1
     constr = constb = False
@@ -304,7 +315,7 @@ def optimize_by_heuristic(histo, e, r, b):
         b = len(histo)
     return r, b
 
-def optimize_by_theorem(histo, e, r, b):
+def optimize_by_theorem(histo: list, e: float, r: int, b: int):
     rb = 2**63
     oldrb = rb + 1
     r = 0
@@ -317,22 +328,96 @@ def optimize_by_theorem(histo, e, r, b):
     r -= 1
     return r, math.ceil(histo[1][1] * math.exp(math.log(1/e)/r))
 
-def opt_dim_main(histo_name, epsilon, r, b, to_collapse):
+def opt_dim_main(histo_name: str, epsilon: float, r: int, b: int, to_collapse: int):
     histo = read_histo(histo_name)
     histo.sort(key=lambda tup: tup[1], reverse=True)
+    new_frequency = None
     unavoidable_error = 0
     if (to_collapse > 1):
         merged = histo[:to_collapse]
         new_count = sum([c for _, c in merged])
-        new_frequency = sum([f * c for f, c in merged]) / new_count
-        unavoidable_error = sum([abs(new_frequency - f) * c for f, c in merged])
+        new_frequency = round(sum([f * c for f, c in merged]) / new_count, 6)
+        unavoidable_error = math.ceil(sum([abs(new_frequency - f) * c for f, c in merged]))
         histo = [(new_frequency, new_frequency)] + histo[to_collapse:]
-    hoptr, hoptb = optimize_by_heuristic(histo, args.epsilon, args.nrows, args.ncolumns)
-    toptr, toptb = optimize_by_theorem(histo, args.epsilon, args.nrows, args.ncolumns)
+    hoptr, hoptb = optimize_by_heuristic(histo, epsilon, r, b)
+    toptr, toptb = optimize_by_theorem(histo, epsilon, r, b)
     coll_probs = [1-(1-1/toptb)**c for f, c in histo]
-    sys.stderr.write("Unavoidable error = {}\n".format(unavoidable_error))
+    sys.stderr.write("New frequency = {}. Unavoidable error = {}\n".format(new_frequency, unavoidable_error))
     sys.stderr.write("Optimal by my heuristic (r, b) = ({}, {})\n".format(hoptr, hoptb))
     sys.stderr.write("Optimal by theorem (r, b) = ({}, {}) with error = {}\n".format(toptr, toptb, round(L1_error(histo, toptr, toptb, coll_probs))))
+    return hoptr, hoptb, toptr, toptb, new_frequency, unavoidable_error
+
+def run_merged_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int, merged: int):
+    """Build and check one single SM sketch with column merging
+
+    Input: 
+    - one fasta/fastq to be sketched
+    - the k-mer length
+    - the approximation factor epsilon
+    - a working directory
+    - the output directory for kmc databases
+    - the output directory for the sketch
+    - a temporary directory
+    - maximum allowed memory
+    - number of columns to merge
+
+    Computations:
+    - for each dataset and k-mer value apply kmc
+    - get the L1 norm of the kmc databases
+    - get the skewness of the k-mer spectrum
+    - sketch the resulting kmc databases with fress sense
+    - run fress check to have (sum of errors, average error, max error)
+    - get the (theoretical) uncompressed size for each fress sketch
+    - get the compressed size of each fress sketch
+
+    Output:
+    - A big table in tsv format with the following columns:
+    dataset name | epsilon | k-value | spectrum skew | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
+    """
+    import time
+    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+
+    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
+    histo_name = sketch_name + ".shist.txt"
+    cmb_name = sketch_name + ".cmb.txt"
+    bin_name = sketch_name + ".bin"
+    arch_name = sketch_name + ".gz"
+    sketch_path = os.path.join(fress_outdir, sketch_name)
+    histo_path = os.path.join(fress_outdir, histo_name)
+    cmb_path = os.path.join(fress_outdir, cmb_name)
+    #bin_path = os.path.join(fress_outdir, bin_name)
+    arch_path = os.path.join(fress_outdir, arch_name)
+
+    tmp_name = str(time.time()) + ".hist.txt"
+    run_fress_histogram(kmcdb, tmp_name)
+    r, b, _, _, freq, unerr = opt_dim_main(tmp_name, epsilon, None, None, merged)
+    os.remove(tmp_name)
+
+    L1, dim = run_fress_sense(kmcdb, sketch_path, epsilon, r, b)
+    L1 = int(L1)
+    dim = int(dim)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path, merged, freq)
+    ncolls = int(ncolls)
+    ntrue_colls = int(ntrue_colls)
+    sod = float(sod)
+    avgd = float(avgd)
+    maxd = float(maxd)
+    tavg = sod/ntrue_colls
+
+    histo = pandas.read_csv(histo_path, sep='\t', header=None)
+    skewness = skew(histo.to_numpy()[:,1])
+    ncombinations = 0
+    with open(cmb_path, "r") as hc:
+        for _ in hc: ncombinations += 1
+    theoretical_udim = round(dim * math.ceil(math.log(ncombinations, 2)) / 8) + os.stat(histo_path).st_size + os.stat(cmb_path).st_size
+    compress(fress_outdir, [histo_name, cmb_name, bin_name], arch_path)
+    cdim = os.stat(arch_path).st_size
+    os.remove(arch_path)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, r, b, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, tavg, maxd, theoretical_udim, cdim, merged, freq, unerr)
 
 if __name__ == "__main__":
     import argparse
@@ -392,12 +477,22 @@ if __name__ == "__main__":
     parser_optdim.add_argument("-b", "--ncolumns", help="number of columns", type=int)
     parser_optdim.add_argument("-m", "--merge", help="Merge the first columns of the histogram to augment the skewness", type=int, default=1)
 
+    parser_mergecols = subparsers.add_parser("mergecols", help="Run set-min sketch pipeline for merged columns of the histogram.")
+    parser_mergecols.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_mergecols.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_mergecols.add_argument("-c", help="kmc folder", required=True)
+    parser_mergecols.add_argument("-f", help="fress output folder", required=True)
+    parser_mergecols.add_argument("-w", help="tmp dir", required=True)
+    parser_mergecols.add_argument("-m", help="max memory for kmc", type=int)
+    parser_mergecols.add_argument("-g", help="number of columns to merge", type=int)
+
     args = parser.parse_args(sys.argv)
     if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
-    elif (args.command == "smsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_sms_for)
-    elif (args.command == "cmsm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_cms_for)
-    elif (args.command == "bbhm"): run_combination(args.file, args.o, args.c, args.f, args.w, args.m, run_bbhash_for)
-    elif (args.command == "check"): run_combination(args.file, args.o, args.c, args.f, None, None, run_sms_check)
-    elif (args.command == "info"): run_combination(args.file, args.o, args.c, args.f, None, None, run_sms_info)
+    elif (args.command == "smsm"): run_combination(args, run_sms_for)
+    elif (args.command == "cmsm"): run_combination(args, run_cms_for)
+    elif (args.command == "bbhm"): run_combination(args, run_bbhash_for)
+    elif (args.command == "check"): run_combination(args, run_sms_check)
+    elif (args.command == "info"): run_combination(args, run_sms_info)
     elif (args.command == "optdim"): opt_dim_main(args.histo, args.epsilon, args.nrows, args.ncolumns, args.merge)
+    elif (args.command == "mergecols"): run_combination(args, run_merged_sms_for)
     else: parser.print_help(sys.stderr)

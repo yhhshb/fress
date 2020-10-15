@@ -365,6 +365,114 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 	return toRet;
 }
 
+std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index, const std::vector<uint32_t>& merged, double freq)
+{
+	using namespace std::chrono;
+	CKMCFile kmcdb;
+	if (!kmcdb.OpenForListing(kmc_filename)) {
+		throw std::runtime_error("Unable to open the database\n");
+	}
+
+	unsigned int _kmer_length;
+	unsigned int _mode;
+	unsigned int _counter_size;
+	unsigned int _lut_prefix_length;
+	unsigned int _signature_len;
+	unsigned int _min_count;
+	unsigned long long _max_count;
+	unsigned long long _total_kmers;
+	kmcdb.Info(_kmer_length, _mode, _counter_size, _lut_prefix_length, _signature_len, _min_count, _max_count, _total_kmers);
+
+	CKmerAPI kmer(_kmer_length);
+	uint32_t counter = 0;
+	char str_kmer[_kmer_length + 1];
+	uint64_t hashes[nrows];
+	std::vector<const bucket_t*> sets(nrows);
+	bucket_t intersection, dummy;
+
+	std::size_t ncolls = 0;
+	std::size_t ntrue_colls = 0;
+	double delta = 0;
+	double delta_sum = 0;
+	double delta_max = 0;
+	std::size_t nqueries = 0;
+	std::size_t bucket_index;
+
+	//std::size_t total_hash_time = 0;
+	//std::size_t total_cycle_time = 0;
+	//std::size_t total_getidx_time = 0;
+	//std::size_t total_intersect_time = 0;
+	//std::size_t total_time = 0;
+	while(kmcdb.ReadNextKmer(kmer, counter))
+	{
+		kmer.to_string(str_kmer);
+		//auto start = high_resolution_clock::now();
+		NTM64(str_kmer, _kmer_length, nrows, hashes);
+		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		//auto start2 = high_resolution_clock::now();
+		for(std::size_t i = 0; i < nrows; ++i)
+		{
+			//auto getidx_start = high_resolution_clock::now();
+			bucket_index = hashes[i] % ncolumns + i * ncolumns;
+			//total_getidx_time += duration_cast<nanoseconds>(high_resolution_clock::now() - getidx_start).count();
+			//auto intersect_start = high_resolution_clock::now();
+			if(i == 0) intersection = frequency_sets[setmap[bucket_index]];
+			else {
+				dummy.clear();
+				const bucket_t& current = frequency_sets[setmap[bucket_index]];
+				std::set_intersection(intersection.cbegin(), intersection.cend(), current.cbegin(), current.cend(), std::back_inserter(dummy));
+				std::swap(intersection, dummy);
+			}
+			//total_intersect_time += duration_cast<nanoseconds>(high_resolution_clock::now() - intersect_start).count(); 
+		}
+		//total_cycle_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start2).count();
+		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		++nqueries;
+		if(intersection.size() > 0)
+		{
+			if((intersection.size() == 1 and intersection[0] != counter) or intersection.size() > 1)
+			{
+				++ncolls;
+				dummy.clear();
+				for(auto elem : intersection) dummy.push_back(inverted_index.at(elem));
+				auto smallest_itr = std::max_element(dummy.cbegin(), dummy.cend());
+				std::size_t idx = std::distance(dummy.cbegin(), smallest_itr);
+				uint32_t qval = intersection.at(idx);
+				if(std::find(merged.cbegin(), merged.cend(), qval) != merged.cend()) 
+				{
+					++ntrue_colls;
+					delta = std::abs(static_cast<double>(counter) - freq);
+				}
+				else
+				{
+					if(qval != counter) ++ntrue_colls;
+					delta = std::abs(static_cast<long long>(counter) - qval);
+				}
+				delta_sum += delta;
+				if(delta_max < delta) delta_max = delta;
+			}
+		}
+	}
+	kmcdb.Close();
+	std::vector<std::string> toRet(5);
+	toRet[0] = std::to_string(ncolls);
+	toRet[1] = std::to_string(ntrue_colls);
+	toRet[2] = std::to_string(delta_sum);
+	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
+	toRet[4] = std::to_string(delta_max);
+	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
+	std::cerr << "Total number of collisions which result in a different frequency" << toRet[0] << "\n";
+	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
+	std::cerr << "Average delta: " << toRet[2] << "\n";
+	std::cerr << "MAX delta: " << toRet[3] << std::endl;
+	//std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
+	//std::cerr << "Mean time to run the outer for loop: " << total_cycle_time / nqueries << " nanoseconds\n";
+	//std::cerr << "Mean time to get set index: " << total_getidx_time / (nrows * nqueries) << " nanoseconds\n";
+	//std::cerr << "Mean time to compute set intersection: " << total_intersect_time / (nrows * nqueries) << " nanoseconds\n";
+	//std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
+	return toRet;
+}
+
 void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms)
 {
 	CKMCFile kmcdb;

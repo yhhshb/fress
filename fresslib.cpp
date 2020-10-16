@@ -353,7 +353,7 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
 	toRet[4] = std::to_string(delta_max);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
-	std::cerr << "Total number of collisions which result in a different frequency" << toRet[0] << "\n";
+	std::cerr << "Total number of collisions which result in a different frequency " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
 	std::cerr << "Average delta: " << toRet[2] << "\n";
 	std::cerr << "MAX delta: " << toRet[3] << std::endl;
@@ -438,6 +438,7 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 				auto smallest_itr = std::max_element(dummy.cbegin(), dummy.cend());
 				std::size_t idx = std::distance(dummy.cbegin(), smallest_itr);
 				uint32_t qval = intersection.at(idx);
+				//std::cerr << "qval = " << qval << " is in " << merged << std::endl;
 				if(std::find(merged.cbegin(), merged.cend(), qval) != merged.cend()) 
 				{
 					++ntrue_colls;
@@ -461,7 +462,7 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
 	toRet[4] = std::to_string(delta_max);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
-	std::cerr << "Total number of collisions which result in a different frequency" << toRet[0] << "\n";
+	std::cerr << "Total number of collisions which result in a different frequency " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
 	std::cerr << "Average delta: " << toRet[2] << "\n";
 	std::cerr << "MAX delta: " << toRet[3] << std::endl;

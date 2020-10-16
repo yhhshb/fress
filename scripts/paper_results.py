@@ -310,9 +310,6 @@ def optimize_by_heuristic(histo: list, e: float, r: int, b: int):
             print("(r, b) = ({}, {}) -> error = {}".format(r, b, round(error)))
         r += 1
     b = math.ceil(dim/r)#set b to maintain constant memory
-    if b < len(histo):
-        sys.stderr.write("Warning, b is smaller than the total number of labels, setting to that value\n")
-        b = len(histo)
     return r, b
 
 def optimize_by_theorem(histo: list, e: float, r: int, b: int):

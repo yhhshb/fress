@@ -15,8 +15,6 @@ import subprocess
 import pandas
 from scipy.stats import skew
 
-sys.path.append("/media/shibuya/workspace/wgram") #directory to wgram repository
-sys.path.append("/home/igm/workspace/wgram")
 import kmc
 
 fressdir = os.path.dirname(os.path.normpath(os.path.dirname(os.path.abspath(__file__))))
@@ -260,9 +258,9 @@ def run_combination(args, command):
                         else: oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem, args.g) + "\n")
                         oh.flush()
 
-def read_histo(histo_name: str):
+def read_histo(histo_path: str):
     histogram = list()
-    with open(histo_name, "r") as hf:
+    with open(histo_path, "r") as hf:
         for line in hf:
             histogram.append(tuple(map(int, line.split('\t'))))
     return histogram
@@ -416,6 +414,14 @@ def run_merged_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress
     os.remove(arch_path)
     return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, r, b, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, tavg, maxd, theoretical_udim, cdim, merged, freq, unerr)
 
+def histogram_info(histo_path: str):
+    histo = read_histo(histo_path)
+    sys.stderr.write("Number of different frequencies = {}\n".format(len(histo)))
+    sys.stderr.write("min frequency = {}\n".format(min([f for f, _ in histo])))
+    sys.stderr.write("MAX frequency = {}\n".format(max([f for f, _ in histo])))
+    sys.stderr.write("L0 norm = {}\n".format(sum([c for _, c in histo])))
+    sys.stderr.write("L1 norm = {}\n".format(sum([f * c for f, c in histo])))
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -483,6 +489,9 @@ if __name__ == "__main__":
     parser_mergecols.add_argument("-m", help="max memory for kmc", type=int)
     parser_mergecols.add_argument("-g", help="number of columns to merge", type=int)
 
+    parser_histinfo = subparsers.add_parser("histinfo", help="Get summary information about histogram")
+    parser_histinfo.add_argument("histo", help="Input histogram file")
+
     args = parser.parse_args(sys.argv)
     if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
     elif (args.command == "smsm"): run_combination(args, run_sms_for)
@@ -492,4 +501,5 @@ if __name__ == "__main__":
     elif (args.command == "info"): run_combination(args, run_sms_info)
     elif (args.command == "optdim"): opt_dim_main(args.histo, args.epsilon, args.nrows, args.ncolumns, args.merge)
     elif (args.command == "mergecols"): run_combination(args, run_merged_sms_for)
+    elif (args.command == "histinfo"): histogram_info(args.histo)
     else: parser.print_help(sys.stderr)

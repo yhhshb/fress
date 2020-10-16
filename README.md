@@ -27,15 +27,12 @@ The main characteristic of the sketches in output is their ability to \epsilon b
 total sum of the errors among all k-mers present during construction instead of having
 single query guarantees only.
 
-In practice, this guarantees small error bounds when the k-mer spectrum of the input data
-follows a power-law, which is the case for most sequencing datasets.
+In practice, when the k-mer spectrum of the input data follows a power-law distribution, 
+fress can achieve very small errors by relying on the fact that the majority of collisions
+will happen between very similar frequencies.
 
-### <a name="cite"></a>Citing fress
+## <a name="cite"></a>Citing fress
 
 If you use minimap2 in your work, please cite:
 
 > TO appear
-
-## <a name="limit"></a>Limitations
-
-* 

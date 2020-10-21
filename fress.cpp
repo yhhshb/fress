@@ -96,7 +96,7 @@ int histogram_main(int argc, char* argv[])
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:o:h:", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;

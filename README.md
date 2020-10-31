@@ -35,4 +35,4 @@ will happen between very similar frequencies.
 
 If you use minimap2 in your work, please cite:
 
-> TO appear
+> Submitted

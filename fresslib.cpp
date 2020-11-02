@@ -474,7 +474,7 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 	return toRet;
 }
 
-void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms, uint32_t ignored)
+void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, uint32_t ignored, const std::unordered_map<uint32_t, uint32_t>& inverted_index, std::vector<uint32_t>& cms)
 {
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
@@ -505,14 +505,93 @@ void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns
 			for(std::size_t i = 0; i < nrows; ++i)
 			{
 				std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
-				if(cms[bucket_index] < counter) cms[bucket_index] = counter;
+				if(
+					inverted_index.find(cms[bucket_index]) == inverted_index.end() or 
+					inverted_index.at(cms[bucket_index]) < inverted_index.at(counter)
+				) 
+					cms[bucket_index] = counter;
 			}
 		}
 	}
 	kmcdb.Close();
 }
 
-void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms, uint32_t ignored)
+std::vector<std::string> check_mm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const sketch_t& cms, const std::unordered_map<uint32_t, uint32_t>& inverted_index)
+{
+	using namespace std::chrono;
+	CKMCFile kmcdb;
+	if (!kmcdb.OpenForListing(kmc_filename)) {
+		throw std::runtime_error("Unable to open the database\n");
+	}
+
+	unsigned int _kmer_length;
+	unsigned int _mode;
+	unsigned int _counter_size;
+	unsigned int _lut_prefix_length;
+	unsigned int _signature_len;
+	unsigned int _min_count;
+	unsigned long long _max_count;
+	unsigned long long _total_kmers;
+	kmcdb.Info(_kmer_length, _mode, _counter_size, _lut_prefix_length, _signature_len, _min_count, _max_count, _total_kmers);
+
+	CKmerAPI kmer(_kmer_length);
+	uint32_t counter = 0;
+	char str_kmer[_kmer_length + 1];
+	uint64_t hashes[nrows];
+	std::vector<const bucket_t*> sets(nrows);
+	bucket_t intersection, dummy;
+
+	std::size_t ncolls = 0;
+	std::size_t ntrue_colls = 0;
+	std::size_t delta_sum = 0;
+	std::size_t delta_max = 0;
+	std::size_t nqueries = 0;
+	std::size_t bucket_index;
+
+	//std::size_t total_hash_time = 0;
+	//std::size_t total_cycle_time = 0;
+	//std::size_t total_getidx_time = 0;
+	//std::size_t total_intersect_time = 0;
+	//std::size_t total_time = 0;
+	while(kmcdb.ReadNextKmer(kmer, counter))
+	{
+		kmer.to_string(str_kmer);
+		//auto start = high_resolution_clock::now();
+		NTM64(str_kmer, _kmer_length, nrows, hashes);
+		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		//auto start2 = high_resolution_clock::now();
+		uint32_t qval = 0;
+		for(std::size_t i = 0; i < nrows; ++i)
+		{
+			//auto getidx_start = high_resolution_clock::now();
+			bucket_index = hashes[i] % ncolumns + i * ncolumns;
+			if(inverted_index.find(cms[bucket_index]) != inverted_index.end())
+			{
+				if(qval == 0 or inverted_index.at(cms[bucket_index]) < inverted_index.at(qval)) qval = cms[bucket_index];
+			}
+		}
+		if(qval != counter) ++ntrue_colls;
+		auto delta = static_cast<std::size_t>(std::abs(static_cast<long long>(counter) - qval));
+		delta_sum += delta;
+		if(delta_max < delta) delta_max = delta;
+	}
+	kmcdb.Close();
+	std::vector<std::string> toRet(5);
+	toRet[0] = std::to_string(ncolls);
+	toRet[1] = std::to_string(ntrue_colls);
+	toRet[2] = std::to_string(delta_sum);
+	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ntrue_colls);
+	toRet[4] = std::to_string(delta_max);
+	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
+	std::cerr << "Total number of collisions which result in a different frequency " << toRet[0] << "\n";
+	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
+	std::cerr << "Average delta: " << toRet[2] << "\n";
+	std::cerr << "MAX delta: " << toRet[3] << std::endl;
+	return toRet;
+}
+
+
+void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, uint32_t ignored, std::vector<uint32_t>& cms)
 {
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
@@ -552,7 +631,7 @@ void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns
 	kmcdb.Close();
 }
 
-std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const std::vector<uint32_t>& cms, uint32_t ignored)
+std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, uint32_t ignored, const std::vector<uint32_t>& cms)
 {
 	using namespace std::chrono;
 	CKMCFile kmcdb;

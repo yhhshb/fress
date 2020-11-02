@@ -1,7 +1,7 @@
 ## <a name="started"></a>Getting Started
 ```sh
 git clone https://github.com/yhhshb/fress
-cd fress && make
+cd fress && make && make kmc
 
 # Build an SM sketch with approximation factor <epsilon>from a given <kmc database>:
 fress sense -i <kmc database> -e <epsilon> -o <output sketch>
@@ -15,7 +15,6 @@ fress check -i <kmc database> -d <sketch>
 - [Getting Started](#started)
 - [Intro](#uguide)
 - [Citing fress](#cite)
-- [Limitations](#limit)
 
 ## <a name="uguide"></a>Intro
 

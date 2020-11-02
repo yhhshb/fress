@@ -4,6 +4,8 @@
 #include "BooPHF.hpp"
 #include "KMCRangeWrapper.hpp"
 
+#include "prettyprint.hpp"
+
 extern "C" {
 #include "ketopt.h"
 }
@@ -307,11 +309,48 @@ int mms_main(int argc, char* argv[])
 	std::size_t L1_norm = optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
-	std::vector<uint32_t> sketch(nrows * ncolumns);
-	fill_mms_sketch(kmc_filename, nrows, ncolumns, sketch, ignored);
+	std::vector<uint32_t> sketch(nrows * ncolumns, 0);
+	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_hist);
+	fill_mms_sketch(kmc_filename, nrows, ncolumns, ignored, invidx, sketch);
 	
 	store_setmap(output_filename + ".mms", nrows, ncolumns, sketch);
-	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, sorted_hist.rend()->first);//script-friendly output
+	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
+	return EXIT_SUCCESS;
+}
+
+int mmschk_main(int argc, char* argv[])
+{
+	std::string kmc_filename, cms_filename;
+	uint64_t nrows, ncolumns;
+	uint32_t ignored = std::numeric_limits<uint32_t>::max();
+
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
+	ketopt_t opt = KETOPT_INIT;
+	int c;
+	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:h", longopts)) >= 0)
+	{
+		if (c == 'i') {
+			kmc_filename = opt.arg;
+		} else if (c == 'd') {
+			cms_filename = opt.arg;
+		} else if (c == 'g') {
+			ignored = static_cast<uint32_t>(std::stoul(opt.arg, nullptr, 10));
+		} else if (c == 'h') {
+			print_cmschk_help();
+			return EXIT_SUCCESS;
+		} else {
+			fprintf(stderr, "Option (%c) not available\n", c);
+			print_cmschk_help();
+			return EXIT_FAILURE;
+		}
+	}
+
+	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
+	auto sorted_histogram = sort_histogram(load_histogram(cms_filename + ".shist.txt"));
+	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_histogram);
+	auto setmap = load_setmap(cms_filename + ".mms", nrows, ncolumns, true);	
+	auto rvals = check_mm_sketch(kmc_filename, nrows, ncolumns, setmap, invidx);
+	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
 
@@ -359,7 +398,7 @@ int cms_main(int argc, char* argv[])
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 	std::vector<uint32_t> sketch(nrows * ncolumns);
-	fill_cms_sketch(kmc_filename, nrows, ncolumns, sketch, ignored);
+	fill_cms_sketch(kmc_filename, nrows, ncolumns, ignored, sketch);
 	
 	store_setmap(output_filename + ".cms", nrows, ncolumns, sketch);
 	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
@@ -395,7 +434,7 @@ int cmschk_main(int argc, char* argv[])
 
 	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
 	auto setmap = load_setmap(cms_filename + ".cms", nrows, ncolumns, true);
-	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, setmap, ignored);
+	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, ignored, setmap);
 	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
@@ -495,6 +534,8 @@ int main(int argc, char* argv[])
 		return info_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "mms") == 0) {
 		return mms_main(argc - om.ind, &argv[om.ind]);
+	} else if (std::strcmp(argv[om.ind], "mmschk") == 0) {
+		return mmschk_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "cms") == 0) {
 		return cms_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "cmschk") == 0) {

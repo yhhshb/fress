@@ -1,11 +1,6 @@
 #!/usr/bin/python3
 
-"""Run experiments for the SMS paper
-
-This script requires the kmc.py module of the wgram repository (https://github.com/yhhshb/wgram)
-Remember to put the install kmc in the wgram folder by running download_tools.sh and install_tools.sh
-Remember to add the wgram folder to the sys.path of this script.
-"""
+"""Run experiments for the SMS paper"""
 
 import os
 import sys
@@ -59,6 +54,11 @@ def run_fress_info(sketch_name: str):
 def run_fress_mms(kmc_name: str, sketch_name: str, epsilon: float, ignored: int = None):
     out = subprocess.run([fress, "mms", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)] + (["-g", str(ignored)] if ignored else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while building the MM sketch {}".format(sketch_name))
+    return out.stdout.decode("utf-8").split()
+
+def run_fress_mmschk(kmc_name: str, sketch_name: str, ignored: int = None):
+    out = subprocess.run([fress, "mmschk", "-i", kmc_name, "-d", sketch_name] + (["-g", str(ignored)] if ignored else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    if(out.returncode != 0): raise Exception("Error while building the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
 def run_fress_cms(kmc_name: str, sketch_name: str, epsilon: float, ignored: int = None):
@@ -180,21 +180,22 @@ def run_mms_for(fastx: str, k: int, epsilon: float, args):
     if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, args.c, args.w, args.m, True)
 
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
-    bin_name = sketch_name + ".cms"
+    bin_name = sketch_name + ".mms"
     arch_name = sketch_name + ".gz"
     sketch_path = os.path.join(args.f, sketch_name)
     arch_path = os.path.join(args.f, arch_name)
 
-    L1, dim, max_val = run_fress_cms(kmcdb, sketch_path, epsilon, args.g)
+    L1, dim, max_val = run_fress_mms(kmcdb, sketch_path, epsilon, args.g)
     L1 = int(L1)
     dim = int(dim)
     max_val = int(max_val)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path, args.g)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_mmschk(kmcdb, sketch_path, args.g)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
 
+    sys.stderr.write("number of cells = {}, max freq = {}\n".format(dim, max_val))
     theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
     compress(args.f, [bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
@@ -384,29 +385,12 @@ def opt_dim_main(histo_name: str, epsilon: float, r: int, b: int, to_collapse: i
 def run_merged_sms_for(fastx: str, k: int, epsilon: float, args):
     """Build and check one single SM sketch with column merging
 
-    Input: 
-    - one fasta/fastq to be sketched
-    - the k-mer length
-    - the approximation factor epsilon
-    - a working directory
-    - the output directory for kmc databases
-    - the output directory for the sketch
-    - a temporary directory
-    - maximum allowed memory
-    - number of columns to merge
-
-    Computations:
-    - for each dataset and k-mer value apply kmc
-    - get the L1 norm of the kmc databases
-    - get the skewness of the k-mer spectrum
-    - sketch the resulting kmc databases with fress sense
-    - run fress check to have (sum of errors, average error, max error)
-    - get the (theoretical) uncompressed size for each fress sketch
-    - get the compressed size of each fress sketch
+    Similar to run_sms_for this function merges the first args.g columns of the histogram and assigns
+    the weighted average of the removed elements to all k-mers involved in the operation.
 
     Output:
     - A big table in tsv format with the following columns:
-    dataset name | epsilon | k-value | spectrum skew | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
+    dataset name | epsilon | k-value | R | B | number of collisions | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
     """
     import time
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
@@ -442,8 +426,8 @@ def run_merged_sms_for(fastx: str, k: int, epsilon: float, args):
     maxd = float(maxd)
     tavg = sod/ntrue_colls
 
-    histo = pandas.read_csv(histo_path, sep='\t', header=None)
-    skewness = skew(histo.to_numpy()[:,1])
+    #histo = pandas.read_csv(histo_path, sep='\t', header=None)
+    #skewness = skew(histo.to_numpy()[:,1])
     ncombinations = 0
     with open(cmb_path, "r") as hc:
         for _ in hc: ncombinations += 1
@@ -451,7 +435,7 @@ def run_merged_sms_for(fastx: str, k: int, epsilon: float, args):
     compress(args.f, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, r, b, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, tavg, maxd, theoretical_udim, cdim, args.g, freq, unerr)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, r, b, ntrue_colls, round(L1 * epsilon), sod, avgd, tavg, maxd, theoretical_udim, cdim, args.g, freq, unerr)
 
 def histogram_info(histo_path: str):
     histo = read_histo(histo_path)
@@ -483,6 +467,15 @@ if __name__ == "__main__":
     parser_smsm.add_argument("-f", help="fress output folder", required=True)
     parser_smsm.add_argument("-w", help="tmp dir", required=True)
     parser_smsm.add_argument("-m", help="max memory for kmc", type=int)
+
+    parser_mmsm = subparsers.add_parser("mmsm", help="Run max-min sketch pipeline for multiple values.")
+    parser_mmsm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
+    parser_mmsm.add_argument("-o", help="output file (tsv format)", required=True)
+    parser_mmsm.add_argument("-c", help="kmc folder", required=True)
+    parser_mmsm.add_argument("-f", help="fress output folder", required=True)
+    parser_mmsm.add_argument("-w", help="tmp dir", required=True)
+    parser_mmsm.add_argument("-m", help="max memory for kmc", type=int)
+    parser_mmsm.add_argument("-g", help="ignore this element during insertion", type=int)
 
     parser_cmsm = subparsers.add_parser("cmsm", help="Run count-min sketch pipeline for multiple values.")
     parser_cmsm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
@@ -535,6 +528,7 @@ if __name__ == "__main__":
     args = parser.parse_args(sys.argv)
     if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args))
     elif (args.command == "smsm"): run_combination(args, run_sms_for)
+    elif (args.command == "mmsm"): run_combination(args, run_mms_for)
     elif (args.command == "cmsm"): run_combination(args, run_cms_for)
     elif (args.command == "bbhm"): run_combination(args, run_bbhash_for)
     elif (args.command == "check"): run_combination(args, run_sms_check)

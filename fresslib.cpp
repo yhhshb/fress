@@ -474,7 +474,7 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 	return toRet;
 }
 
-void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms)
+void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms, uint32_t ignored)
 {
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
@@ -498,20 +498,61 @@ void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns
 	
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
-		kmer.to_string(str_kmer);
-		NTM64(str_kmer, _kmer_length, nrows, hashes);
-		for(std::size_t i = 0; i < nrows; ++i)
+		if(counter != ignored)
 		{
-			std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
-			uint32_t oldval = cms[bucket_index];
-			cms[bucket_index] += counter;
-			if(cms[bucket_index] < oldval) throw std::runtime_error("CMS overflow");
+			kmer.to_string(str_kmer);
+			NTM64(str_kmer, _kmer_length, nrows, hashes);
+			for(std::size_t i = 0; i < nrows; ++i)
+			{
+				std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
+				if(cms[bucket_index] < counter) cms[bucket_index] = counter;
+			}
 		}
 	}
 	kmcdb.Close();
 }
 
-std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const std::vector<uint32_t>& cms)
+void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms, uint32_t ignored)
+{
+	CKMCFile kmcdb;
+	if (!kmcdb.OpenForListing(kmc_filename)) {
+		throw std::runtime_error("Unable to open the database\n");
+	}
+
+	unsigned int _kmer_length;
+	unsigned int _mode;
+	unsigned int _counter_size;
+	unsigned int _lut_prefix_length;
+	unsigned int _signature_len;
+	unsigned int _min_count;
+	unsigned long long _max_count;
+	unsigned long long _total_kmers;
+	kmcdb.Info(_kmer_length, _mode, _counter_size, _lut_prefix_length, _signature_len, _min_count, _max_count, _total_kmers);
+
+	CKmerAPI kmer(_kmer_length);
+	uint32_t counter = 0;
+	char str_kmer[_kmer_length + 1];
+	uint64_t hashes[nrows];
+	
+	while(kmcdb.ReadNextKmer(kmer, counter))
+	{
+		if(counter != ignored)
+		{
+			kmer.to_string(str_kmer);
+			NTM64(str_kmer, _kmer_length, nrows, hashes);
+			for(std::size_t i = 0; i < nrows; ++i)
+			{
+				std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
+				uint32_t oldval = cms[bucket_index];
+				cms[bucket_index] += counter;
+				if(cms[bucket_index] < oldval) throw std::runtime_error("CMS overflow");
+			}
+		}
+	}
+	kmcdb.Close();
+}
+
+std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const std::vector<uint32_t>& cms, uint32_t ignored)
 {
 	using namespace std::chrono;
 	CKMCFile kmcdb;
@@ -556,6 +597,7 @@ std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrow
 		}
 		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		++nqueries;
+		if(ignored != std::numeric_limits<uint32_t>::max() and minimum == 0) minimum = ignored;
 		if(minimum != counter)
 		{
 			++ncolls;

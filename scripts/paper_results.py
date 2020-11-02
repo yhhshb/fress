@@ -46,23 +46,28 @@ def run_fress_sense(kmc_name: str, sketch_name: str, epsilon: float, r: int = No
     if(out.returncode != 0): raise Exception("Error while building the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
-def run_fress_check(kmc_name: str, sketch_name, merged = 0, new_freq = 0):
+def run_fress_check(kmc_name: str, sketch_name: str, merged: int = 0, new_freq: float = 0):
     out = subprocess.run([fress, "check", "-i", kmc_name, "-d", sketch_name] + (["-g", str(merged)] if merged else []) + (["-f", str(new_freq)] if new_freq else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while checking the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
-def run_fress_info(sketch_name):
+def run_fress_info(sketch_name: str):
     out = subprocess.run([fress, "info", "-d", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while getting info about {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
-def run_fress_cms(kmc_name: str, sketch_name: str, epsilon: float):
-    out = subprocess.run([fress, "cms", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+def run_fress_mms(kmc_name: str, sketch_name: str, epsilon: float, ignored: int = None):
+    out = subprocess.run([fress, "mms", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)] + (["-g", str(ignored)] if ignored else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    if(out.returncode != 0): raise Exception("Error while building the MM sketch {}".format(sketch_name))
+    return out.stdout.decode("utf-8").split()
+
+def run_fress_cms(kmc_name: str, sketch_name: str, epsilon: float, ignored: int = None):
+    out = subprocess.run([fress, "cms", "-i", kmc_name, "-o", sketch_name, "-e", str(epsilon)] + (["-g", str(ignored)] if ignored else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while building the CM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
-def run_fress_cmschk(kmc_name: str, sketch_name):
-    out = subprocess.run([fress, "cmschk", "-i", kmc_name, "-d", sketch_name], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+def run_fress_cmschk(kmc_name: str, sketch_name: str, ignored: int = None):
+    out = subprocess.run([fress, "cmschk", "-i", kmc_name, "-d", sketch_name] + (["-g", str(ignored)] if ignored else []), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if(out.returncode != 0): raise Exception("Error while building the SM sketch {}".format(sketch_name))
     return out.stdout.decode("utf-8").split()
 
@@ -71,7 +76,7 @@ def run_fress_bbhash(kmc_name: str, sketch_name: str):
     if(out.returncode != 0): raise Exception("Error while building the BBHash mphf {}".format(sketch_name))
     return out.stdout.decode("utf-8").split('\n')[-1].split()
 
-def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
+def run_sms_for(fastx: str, k: int, epsilon: float, args):
     """Build and check one single SM sketch
 
     Input: 
@@ -95,24 +100,27 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
 
     Output:
     - A big table in tsv format with the following columns:
-    dataset name | epsilon | k-value | spectrum skew | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
+    dataset name | epsilon | k | number of collisions | threshold | L1 sum of deltas | average delta | max delta | uncompressed size | compressed size
+    
+    ATTENTION: average delta is not (L1 sum of deltas / number of collisions) but an average computed over using collisions computed 
+    as intersections of size different than one (instead of the wrong frequency)
     """
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, args.c)
     pre_file = kmcdb + ".kmc_pre"
     suf_file = kmcdb + ".kmc_suf"
-    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, args.c, args.w, args.m, True)
 
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
     histo_name = sketch_name + ".shist.txt"
     cmb_name = sketch_name + ".cmb.txt"
     bin_name = sketch_name + ".bin"
     arch_name = sketch_name + ".gz"
-    sketch_path = os.path.join(fress_outdir, sketch_name)
-    histo_path = os.path.join(fress_outdir, histo_name)
-    cmb_path = os.path.join(fress_outdir, cmb_name)
-    #bin_path = os.path.join(fress_outdir, bin_name)
-    arch_path = os.path.join(fress_outdir, arch_name)
+    sketch_path = os.path.join(args.f, sketch_name)
+    histo_path = os.path.join(args.f, histo_name)
+    cmb_path = os.path.join(args.f, cmb_name)
+    #bin_path = os.path.join(args.f, bin_name)
+    arch_path = os.path.join(args.f, arch_name)
 
     L1, dim = run_fress_sense(kmcdb, sketch_path, epsilon)
     L1 = int(L1)
@@ -123,89 +131,23 @@ def run_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir
     avgd = float(avgd)
     maxd = int(maxd)
 
-    histo = pandas.read_csv(histo_path, sep='\t', header=None)
-    skewness = skew(histo.to_numpy()[:,1])
+    #histo = pandas.read_csv(histo_path, sep='\t', header=None)
+    #skewness = skew(histo.to_numpy()[:,1])
     ncombinations = 0
     with open(cmb_path, "r") as hc:
         for _ in hc: ncombinations += 1
     theoretical_udim = round(dim * math.ceil(math.log(ncombinations, 2)) / 8) + os.stat(histo_path).st_size + os.stat(cmb_path).st_size
-    compress(fress_outdir, [histo_name, cmb_name, bin_name], arch_path)
+    compress(args.f, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
 
-def run_cms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
-    """Build and check one single CM sketch
-
-    See run_sms_for documetantion.
-    Note: the skewness parameter is not used here and defaults to "NA"
-    """
+def run_sms_check(fastx: str, k: int, epsilon: float, args):
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
-    pre_file = kmcdb + ".kmc_pre"
-    suf_file = kmcdb + ".kmc_suf"
-    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, args.c)
 
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
-    bin_name = sketch_name + ".cms"
-    arch_name = sketch_name + ".gz"
-    sketch_path = os.path.join(fress_outdir, sketch_name)
-    arch_path = os.path.join(fress_outdir, arch_name)
-
-    L1, dim, max_val = run_fress_cms(kmcdb, sketch_path, epsilon)
-    L1 = int(L1)
-    dim = int(dim)
-    max_val = int(max_val)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path)
-    ncolls = int(ncolls)
-    ntrue_colls = int(ntrue_colls)
-    avgd = float(avgd)
-    maxd = int(maxd)
-
-    theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
-    compress(fress_outdir, [bin_name], arch_path)
-    cdim = os.stat(arch_path).st_size
-    os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, "NA", ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
-
-def run_bbhash_for(fastx: str, k: int, _, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int):
-    """Build and check BBHash MPHF with = 1
-
-    See run_sms_for documentation about input parameters.
-    Output:
-    - A big table in tsv format with the following columns:
-    dataset name | k-value | mphf uncompressed size | total uncompressed size | total compressed size
-    """
-    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
-    pre_file = kmcdb + ".kmc_pre"
-    suf_file = kmcdb + ".kmc_suf"
-    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
-
-    sketch_name = "{}k{}".format(filename, k)
-    mphf_name = sketch_name + ".bbh"
-    payload_name = sketch_name + ".pld"
-    arch_name = sketch_name + "_BBH.gz"
-    sketch_path = os.path.join(fress_outdir, sketch_name)
-    mphf_path = os.path.join(fress_outdir, mphf_name)
-    arch_path = os.path.join(fress_outdir, arch_name)
-
-    max_val, L0 = run_fress_bbhash(kmcdb, sketch_path)
-    max_val = int(max_val)
-    L0 = int(L0)
-
-    mphf_size = os.stat(mphf_path).st_size
-    theoretical_udim = round(L0 * math.ceil(math.log(max_val, 2)) / 8) + mphf_size
-    compress(fress_outdir, [mphf_name, payload_name], arch_path)
-    cdim = os.stat(arch_path).st_size
-    os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}".format(filename, k, mphf_size, theoretical_udim, cdim)
-
-def run_sms_check(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, dummy1=None, dummy2=None):
-    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
-
-    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
-    sketch_path = os.path.join(fress_outdir, sketch_name)
+    sketch_path = os.path.join(args.f, sketch_name)
 
     ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path)
     ncolls = int(ncolls)
@@ -214,17 +156,115 @@ def run_sms_check(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outd
     maxd = int(maxd)
     return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ncolls, ntrue_colls, sod, avgd, maxd)
 
-def run_sms_info(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, dummy1=None, dummy2=None):
+def run_sms_info(fastx: str, k: int, epsilon: float, args):
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    filename, _, _, _, _ = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    filename, _, _, _, _ = kmc.getKMCPaths(k, fastx, args.c)
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
-    sketch_path = os.path.join(fress_outdir, sketch_name)
+    sketch_path = os.path.join(args.f, sketch_name)
 
     R, B, RB = run_fress_info(sketch_path)
     R = int(R)
     B = int(B)
     RB = int(RB)
     return "{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, R, B, RB)
+
+def run_mms_for(fastx: str, k: int, epsilon: float, args):
+    """Build and check one single MM sketch
+
+    See run_sms_for documetantion.
+    """
+    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, args.c)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, args.c, args.w, args.m, True)
+
+    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
+    bin_name = sketch_name + ".cms"
+    arch_name = sketch_name + ".gz"
+    sketch_path = os.path.join(args.f, sketch_name)
+    arch_path = os.path.join(args.f, arch_name)
+
+    L1, dim, max_val = run_fress_cms(kmcdb, sketch_path, epsilon, args.g)
+    L1 = int(L1)
+    dim = int(dim)
+    max_val = int(max_val)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path, args.g)
+    ncolls = int(ncolls)
+    ntrue_colls = int(ntrue_colls)
+    avgd = float(avgd)
+    maxd = int(maxd)
+
+    theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
+    compress(args.f, [bin_name], arch_path)
+    cdim = os.stat(arch_path).st_size
+    os.remove(arch_path)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+
+def run_cms_for(fastx: str, k: int, epsilon: float, args):
+    """Build and check one single CM sketch
+
+    See run_sms_for documetantion.
+    """
+    if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, args.c)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, args.c, args.w, args.m, True)
+
+    sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
+    bin_name = sketch_name + ".cms"
+    arch_name = sketch_name + ".gz"
+    sketch_path = os.path.join(args.f, sketch_name)
+    arch_path = os.path.join(args.f, arch_name)
+
+    L1, dim, max_val = run_fress_cms(kmcdb, sketch_path, epsilon, args.g)
+    L1 = int(L1)
+    dim = int(dim)
+    max_val = int(max_val)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path, args.g)
+    ncolls = int(ncolls)
+    ntrue_colls = int(ntrue_colls)
+    avgd = float(avgd)
+    maxd = int(maxd)
+
+    theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
+    compress(args.f, [bin_name], arch_path)
+    cdim = os.stat(arch_path).st_size
+    os.remove(arch_path)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+
+def run_bbhash_for(fastx: str, k: int, _, args):
+    """Build and check BBHash MPHF with = 1
+
+    See run_sms_for documentation about input parameters.
+    Output:
+    - A big table in tsv format with the following columns:
+    dataset name | k-value | mphf uncompressed size | total uncompressed size | total compressed size
+    """
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, args.c)
+    pre_file = kmcdb + ".kmc_pre"
+    suf_file = kmcdb + ".kmc_suf"
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, args.c, args.w, args.m, True)
+
+    sketch_name = "{}k{}".format(filename, k)
+    mphf_name = sketch_name + ".bbh"
+    payload_name = sketch_name + ".pld"
+    arch_name = sketch_name + "_BBH.gz"
+    sketch_path = os.path.join(args.f, sketch_name)
+    mphf_path = os.path.join(args.f, mphf_name)
+    arch_path = os.path.join(args.f, arch_name)
+
+    max_val, L0 = run_fress_bbhash(kmcdb, sketch_path)
+    max_val = int(max_val)
+    L0 = int(L0)
+
+    mphf_size = os.stat(mphf_path).st_size
+    theoretical_udim = round(L0 * math.ceil(math.log(max_val, 2)) / 8) + mphf_size
+    compress(args.f, [mphf_name, payload_name], arch_path)
+    cdim = os.stat(arch_path).st_size
+    os.remove(arch_path)
+    return "{}\t{}\t{}\t{}\t{}".format(filename, k, mphf_size, theoretical_udim, cdim)
 
 def run_combination(args, command):
     """Run fress for multiple parameters
@@ -233,14 +273,14 @@ def run_combination(args, command):
     <dataset name> [k1, ..., kn] [epsilon1, ..., epsilon<m>]
     one line for each combination of parameter will be generated.
     """
-    description_file = args.file
-    output_file = args.o
-    kmc_outdir = args.c
-    fress_outdir = args.f
-    tmpdir = args.w
-    max_mem = args.m
-    with open(output_file, "w") as oh:
-        with open(description_file, "r") as dh:
+    #description_file = args.file
+    #output_file = args.o
+    #kmc_outdir = args.c
+    #fress_outdir = args.f
+    #tmpdir = args.w
+    #max_mem = args.m
+    with open(args.o, "w") as oh:
+        with open(args.file, "r") as dh:
             for line in dh:
                 blocks = [block.replace(' ', '').strip() for block in line.split("[")]
                 if(len(blocks) != 3): raise ValueError("Found a non-properly formatted line: {}".format(line))
@@ -254,8 +294,7 @@ def run_combination(args, command):
                 for e in epsilons:
                     for k in ks:
                         sys.stderr.write("Now fressing {} with k = {} and epsilon = {}\n".format(dataset, k, e))
-                        if (command != run_merged_sms_for): oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem) + "\n")
-                        else: oh.write(command(dataset, k, e, kmc_outdir, fress_outdir, tmpdir, max_mem, args.g) + "\n")
+                        oh.write(command(dataset, k, e, args) + "\n")
                         oh.flush()
 
 def read_histo(histo_path: str):
@@ -342,7 +381,7 @@ def opt_dim_main(histo_name: str, epsilon: float, r: int, b: int, to_collapse: i
     sys.stderr.write("Optimal by theorem (r, b) = ({}, {}) with error = {}\n".format(toptr, toptb, round(L1_error(histo, toptr, toptb, coll_probs))))
     return hoptr, hoptb, toptr, toptb, new_frequency, unavoidable_error
 
-def run_merged_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress_outdir: str, tmpdir: str, max_mem: int, merged: int):
+def run_merged_sms_for(fastx: str, k: int, epsilon: float, args):
     """Build and check one single SM sketch with column merging
 
     Input: 
@@ -371,31 +410,31 @@ def run_merged_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress
     """
     import time
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
-    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, kmc_outdir)
+    filename, _, _, _, kmcdb = kmc.getKMCPaths(k, fastx, args.c)
     pre_file = kmcdb + ".kmc_pre"
     suf_file = kmcdb + ".kmc_suf"
-    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, kmc_outdir, tmpdir, max_mem, True)
+    if(not os.path.exists(pre_file) or not os.path.exists(suf_file)): kmc.count(k, fastx, args.c, args.w, args.m, True)
 
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
     histo_name = sketch_name + ".shist.txt"
     cmb_name = sketch_name + ".cmb.txt"
     bin_name = sketch_name + ".bin"
     arch_name = sketch_name + ".gz"
-    sketch_path = os.path.join(fress_outdir, sketch_name)
-    histo_path = os.path.join(fress_outdir, histo_name)
-    cmb_path = os.path.join(fress_outdir, cmb_name)
-    #bin_path = os.path.join(fress_outdir, bin_name)
-    arch_path = os.path.join(fress_outdir, arch_name)
+    sketch_path = os.path.join(args.f, sketch_name)
+    histo_path = os.path.join(args.f, histo_name)
+    cmb_path = os.path.join(args.f, cmb_name)
+    #bin_path = os.path.join(args.f, bin_name)
+    arch_path = os.path.join(args.f, arch_name)
 
     tmp_name = str(time.time()) + ".hist.txt"
     run_fress_histogram(kmcdb, tmp_name)
-    r, b, _, _, freq, unerr = opt_dim_main(tmp_name, epsilon, None, None, merged)
+    r, b, _, _, freq, unerr = opt_dim_main(tmp_name, epsilon, None, None, args.g)
     os.remove(tmp_name)
 
     L1, dim = run_fress_sense(kmcdb, sketch_path, epsilon, r, b)
     L1 = int(L1)
     dim = int(dim)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path, merged, freq)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path, args.g, freq)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     sod = float(sod)
@@ -409,10 +448,10 @@ def run_merged_sms_for(fastx: str, k: int, epsilon: float, kmc_outdir:str, fress
     with open(cmb_path, "r") as hc:
         for _ in hc: ncombinations += 1
     theoretical_udim = round(dim * math.ceil(math.log(ncombinations, 2)) / 8) + os.stat(histo_path).st_size + os.stat(cmb_path).st_size
-    compress(fress_outdir, [histo_name, cmb_name, bin_name], arch_path)
+    compress(args.f, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, r, b, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, tavg, maxd, theoretical_udim, cdim, merged, freq, unerr)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, r, b, skewness, ncolls, ntrue_colls, round(L1 * epsilon), sod, avgd, tavg, maxd, theoretical_udim, cdim, args.g, freq, unerr)
 
 def histogram_info(histo_path: str):
     histo = read_histo(histo_path)
@@ -445,15 +484,16 @@ if __name__ == "__main__":
     parser_smsm.add_argument("-w", help="tmp dir", required=True)
     parser_smsm.add_argument("-m", help="max memory for kmc", type=int)
 
-    parser_cmsm = subparsers.add_parser("cmsm", help="Run set-min sketch pipeline for multiple values.")
+    parser_cmsm = subparsers.add_parser("cmsm", help="Run count-min sketch pipeline for multiple values.")
     parser_cmsm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
     parser_cmsm.add_argument("-o", help="output file (tsv format)", required=True)
     parser_cmsm.add_argument("-c", help="kmc folder", required=True)
     parser_cmsm.add_argument("-f", help="fress output folder", required=True)
     parser_cmsm.add_argument("-w", help="tmp dir", required=True)
     parser_cmsm.add_argument("-m", help="max memory for kmc", type=int)
+    parser_cmsm.add_argument("-g", help="ignore this element during insertion", type=int)
 
-    parser_bbhm = subparsers.add_parser("bbhm", help="Run set-min sketch pipeline for multiple values.")
+    parser_bbhm = subparsers.add_parser("bbhm", help="Run BBHash pipeline for multiple values.")
     parser_bbhm.add_argument("file", help="File containing one line per dataset in the form of <dataset> [k1, ...,kn] [epsilon1, ..., epsilon<m>]")
     parser_bbhm.add_argument("-o", help="output file (tsv format)", required=True)
     parser_bbhm.add_argument("-c", help="kmc folder", required=True)
@@ -493,7 +533,7 @@ if __name__ == "__main__":
     parser_histinfo.add_argument("histo", help="Input histogram file")
 
     args = parser.parse_args(sys.argv)
-    if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args.c, args.f, args.w, args.m))
+    if (args.command == "sms"): print(run_sms_for(args.file, args.k, args.e, args))
     elif (args.command == "smsm"): run_combination(args, run_sms_for)
     elif (args.command == "cmsm"): run_combination(args, run_cms_for)
     elif (args.command == "bbhm"): run_combination(args, run_bbhash_for)

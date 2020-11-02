@@ -54,5 +54,7 @@ void fill_sketch_small(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, 
 std::vector<std::string> check_sketch(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index);
 std::vector<std::string> check_sketch_merge(std::string kmc_name, uint64_t nrows, uint64_t ncolumns, const sketch_t& setmap, const std::vector<std::vector<uint32_t>>& frequency_sets, const std::unordered_map<uint32_t, uint32_t>& inverted_index, const std::vector<uint32_t>& merged, double freq);
 
-void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms);
-std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const std::vector<uint32_t>& cms);
+void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms, uint32_t ignored);
+
+void fill_cms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, std::vector<uint32_t>& cms, uint32_t ignored);
+std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, const std::vector<uint32_t>& cms, uint32_t ignored);

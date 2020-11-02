@@ -29,6 +29,14 @@ $(FRESS_OBJS) $(KMC_API_OBJS): %.o: %.cpp
 executable: $(KMC_API_OBJS) $(FRESS_OBJS)
 	$(CXX) -o $(PROG) $(FRESS_OBJS) $(KMC_API_OBJS) -lpthread
 
+kmc:
+	wget https://github.com/refresh-bio/KMC/releases/download/v3.0.0/KMC3.linux.tar.gz
+	tar xzf KMC3.linux.tar.gz
+	mv kmc scripts/kmc
+	mv kmc_tools scripts/kmc_tools
+	mv kmc_dump scripts/kmc_dump
+	rm KMC3.linux.tar.gz
+
 clean:
 	rm $(PROG) 
 	rm *.o

@@ -51,7 +51,7 @@ def count(k: int, input_file: str, output_path: str, kmc_dummy_folder: str, mmem
     this_path = os.path.dirname(os.path.abspath(__file__))
     kmc = os.path.join(this_path, "kmc")
     kmc_tools = os.path.join(this_path, "kmc_tools")
-    subprocess.run([kmc, "-b", "-k"+str(k), "-ci0", "-cs4294967295", "-cx4294967295", "-m"+str(mmemory), fmt, input_file, intermidiate_file, kmc_dummy_folder], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    out = subprocess.run([kmc, "-b", "-k"+str(k), "-ci0", "-cs4294967295", "-cx4294967295", "-m"+str(mmemory), fmt, input_file, intermidiate_file, kmc_dummy_folder], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if (not unsorted): subprocess.run([kmc_tools, "transform", intermidiate_file, "sort", sorted_file], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if os.path.exists(sorted_file+".kmc_pre"): os.remove(intermidiate_file+".kmc_pre")
     else: os.rename(intermidiate_file+".kmc_pre", sorted_file+".kmc_pre")

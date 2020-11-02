@@ -58,6 +58,18 @@ void print_info_help()
 	fprintf(stderr, "\nOutput the parameters used for construction and some other informations\n");
 }
 
+void print_mms_help()
+{
+	fprintf(stderr, "mms options:\n");
+	fprintf(stderr, "\t-i\tinput kmc database (without extensions)\n");
+	fprintf(stderr, "\t-o\toutput probabilistic map containing the frequencies\n");
+	fprintf(stderr, "\t-e\tepsilon approximation ??? of the L1 sum of errors [0.01]\n");
+	fprintf(stderr, "\t-s\tinput histogram generated from the input kmc database using the <histogram> subcommand. If not specified it is computed from the histogram\n");
+	fprintf(stderr, "\t-r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
+	fprintf(stderr, "\t-b\tnumber of columns. If not specified it is computed from the histogram\n");
+	fprintf(stderr, "\t-h\tshows this help\n");
+}
+
 void print_cms_help()
 {
 	fprintf(stderr, "cms options:\n");
@@ -67,6 +79,7 @@ void print_cms_help()
 	fprintf(stderr, "\t-s\tinput histogram generated from the input kmc database using the <histogram> subcommand. If not specified it is computed from the histogram\n");
 	fprintf(stderr, "\t-r\tnumber of independent bucket rows. If not specified it is computed from the histogram\n");
 	fprintf(stderr, "\t-b\tnumber of columns. If not specified it is computed from the histogram\n");
+	fprintf(stderr, "\t-g\tcounter value to be ignored during construction\n");
 	fprintf(stderr, "\t-h\tshows this help\n");
 
 }
@@ -76,6 +89,7 @@ void print_cmschk_help()
 	fprintf(stderr, "check options:\n");
 	fprintf(stderr, "\t-i\tinput kmc database (without extensions)\n");
 	fprintf(stderr, "\t-d\tinput count-min sketch built from the input kmc database\n");
+	fprintf(stderr, "\t-g\tdefault value to be restored when encountering a minimum of 0\n");
 	fprintf(stderr, "\t-h\tshows this help\n");
 	fprintf(stderr, "\nHuman-readable output on stderr, script-friendly output on stdout\n");
 }
@@ -250,18 +264,19 @@ int info_main(int argc, char* argv[])
 	return EXIT_SUCCESS;
 }
 
-int cms_main(int argc, char* argv[])
+int mms_main(int argc, char* argv[])
 {
 	std::string kmc_filename, output_filename;
 	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
 	uint64_t nrows = 0;
 	uint64_t ncolumns = 0;
 	double epsilon = 0.01;
+	uint32_t ignored = std::numeric_limits<uint32_t>::max();
 	
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:e:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:e:g:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
@@ -275,6 +290,8 @@ int cms_main(int argc, char* argv[])
 			ncolumns = std::stoul(opt.arg, nullptr, 10);
 		} else if (c == 'e') {
 			epsilon = std::stod(opt.arg);
+		} else if (c == 'g') {
+			ignored = static_cast<uint32_t>(std::stoul(opt.arg, nullptr, 10));
 		} else if (c == 'h') {
 			print_cms_help();
 			return EXIT_SUCCESS;
@@ -291,7 +308,58 @@ int cms_main(int argc, char* argv[])
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 	std::vector<uint32_t> sketch(nrows * ncolumns);
-	fill_cms_sketch(kmc_filename, nrows, ncolumns, sketch);
+	fill_mms_sketch(kmc_filename, nrows, ncolumns, sketch, ignored);
+	
+	store_setmap(output_filename + ".mms", nrows, ncolumns, sketch);
+	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, sorted_hist.rend()->first);//script-friendly output
+	return EXIT_SUCCESS;
+}
+
+int cms_main(int argc, char* argv[])
+{
+	std::string kmc_filename, output_filename;
+	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
+	uint64_t nrows = 0;
+	uint64_t ncolumns = 0;
+	double epsilon = 0.01;
+	uint32_t ignored = std::numeric_limits<uint32_t>::max();
+	
+	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
+	ketopt_t opt = KETOPT_INIT;
+	int c;
+	while((c = ketopt(&opt, argc, argv, 1, "i:o:s:r:b:e:g:h", longopts)) >= 0)
+	{
+		if (c == 'i') {
+			kmc_filename = opt.arg;
+		} else if (c == 'o') {
+			output_filename = opt.arg;
+		} else if (c == 's') {
+			sorted_hist = sort_histogram(load_histogram(opt.arg));
+		} else if (c == 'r') {
+			nrows = std::stoul(opt.arg, nullptr, 10);
+		} else if (c == 'b') {
+			ncolumns = std::stoul(opt.arg, nullptr, 10);
+		} else if (c == 'e') {
+			epsilon = std::stod(opt.arg);
+		} else if (c == 'g') {
+			ignored = static_cast<uint32_t>(std::stoul(opt.arg, nullptr, 10));
+		} else if (c == 'h') {
+			print_cms_help();
+			return EXIT_SUCCESS;
+		} else {
+			fprintf(stderr, "Option (%c) not available\n", c);
+			print_cms_help();
+			return EXIT_FAILURE;
+		}
+	}
+
+	if(kmc_filename == "" or output_filename == "") throw std::runtime_error("-i and -o are mandatory arguments");
+	if(sorted_hist.size() == 0) sorted_hist = sort_histogram(compute_histogram(kmc_filename));
+	std::size_t L1_norm = optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
+	
+	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
+	std::vector<uint32_t> sketch(nrows * ncolumns);
+	fill_cms_sketch(kmc_filename, nrows, ncolumns, sketch, ignored);
 	
 	store_setmap(output_filename + ".cms", nrows, ncolumns, sketch);
 	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
@@ -302,16 +370,19 @@ int cmschk_main(int argc, char* argv[])
 {
 	std::string kmc_filename, cms_filename;
 	uint64_t nrows, ncolumns;
+	uint32_t ignored = std::numeric_limits<uint32_t>::max();
 
 	static ko_longopt_t longopts[] = {{NULL, 0, 0}};
 	ketopt_t opt = KETOPT_INIT;
 	int c;
-	while((c = ketopt(&opt, argc, argv, 1, "i:d:h", longopts)) >= 0)
+	while((c = ketopt(&opt, argc, argv, 1, "i:d:g:h", longopts)) >= 0)
 	{
 		if (c == 'i') {
 			kmc_filename = opt.arg;
 		} else if (c == 'd') {
 			cms_filename = opt.arg;
+		} else if (c == 'g') {
+			ignored = static_cast<uint32_t>(std::stoul(opt.arg, nullptr, 10));
 		} else if (c == 'h') {
 			print_cmschk_help();
 			return EXIT_SUCCESS;
@@ -324,7 +395,7 @@ int cmschk_main(int argc, char* argv[])
 
 	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
 	auto setmap = load_setmap(cms_filename + ".cms", nrows, ncolumns, true);
-	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, setmap);
+	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, setmap, ignored);
 	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
@@ -422,6 +493,8 @@ int main(int argc, char* argv[])
 		return check_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "info") == 0) {
 		return info_main(argc - om.ind, &argv[om.ind]);
+	} else if (std::strcmp(argv[om.ind], "mms") == 0) {
+		return mms_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "cms") == 0) {
 		return cms_main(argc - om.ind, &argv[om.ind]);
 	} else if (std::strcmp(argv[om.ind], "cmschk") == 0) {

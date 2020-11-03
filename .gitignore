@@ -35,3 +35,4 @@ kmc
 kmc_dump
 kmc_tools
 fress
+__pycache__

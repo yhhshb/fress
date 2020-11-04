@@ -693,9 +693,9 @@ std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrow
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
 	toRet[4] = std::to_string(delta_max);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
-	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
-	std::cerr << "Average delta: " << toRet[2] << "\n";
-	std::cerr << "MAX delta: " << toRet[3] << std::endl;
+	std::cerr << "L1 sum of deltas: " << toRet[2] << "\n";
+	std::cerr << "Average delta: " << toRet[3] << "\n";
+	std::cerr << "MAX delta: " << toRet[4] << std::endl;
 	//std::cerr << "Mean time to build the hash vector: " << total_hash_time / nqueries << " nanoseconds\n";
 	//std::cerr << "Mean time to retrieve a frequency: " << total_time / nqueries << " nanoseconds" << std::endl;
 	return toRet;

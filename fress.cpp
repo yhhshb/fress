@@ -174,7 +174,7 @@ int sense_main(int argc, char* argv[])
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 
 	std::vector<std::string> combinations;
-	std::vector<uint32_t> sketch(nrows * ncolumns);
+	std::vector<uint32_t> sketch(nrows * ncolumns, 0);
 	fill_sketch_small(kmc_filename, nrows, ncolumns, sorted_hist.size() != 0 ? sorted_hist[0].first : std::numeric_limits<uint32_t>::max(), combinations, sketch);
 	
 	store_histogram(output_filename + ".shist.txt", sorted_hist);
@@ -397,7 +397,7 @@ int cms_main(int argc, char* argv[])
 	std::size_t L1_norm = optimise_r_b(sorted_hist, epsilon, nrows, ncolumns);
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
-	std::vector<uint32_t> sketch(nrows * ncolumns);
+	std::vector<uint32_t> sketch(nrows * ncolumns, 0);//just to be explicit about the 0
 	fill_cms_sketch(kmc_filename, nrows, ncolumns, ignored, sketch);
 	
 	store_setmap(output_filename + ".cms", nrows, ncolumns, sketch);

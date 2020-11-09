@@ -310,15 +310,15 @@ int mms_main(int argc, char* argv[])
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 	std::vector<uint32_t> sketch(nrows * ncolumns, 0);
-	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_hist);
-	fill_mms_sketch(kmc_filename, nrows, ncolumns, ignored, invidx, sketch);
+	//std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_hist);
+	fill_mms_sketch(kmc_filename, nrows, ncolumns, ignored, sketch);
 	
 	store_setmap(output_filename + ".mms", nrows, ncolumns, sketch);
 	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
 	return EXIT_SUCCESS;
 }
 
-int mmschk_main(int argc, char* argv[])
+int mmschk_main(int argc, char* argv[]) //UNUSED
 {
 	std::string kmc_filename, cms_filename;
 	uint64_t nrows, ncolumns;

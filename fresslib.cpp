@@ -474,7 +474,7 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 	return toRet;
 }
 
-void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, uint32_t ignored, const std::unordered_map<uint32_t, uint32_t>& inverted_index, std::vector<uint32_t>& cms)
+void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns, uint32_t ignored, std::vector<uint32_t>& cms)
 {
 	CKMCFile kmcdb;
 	if (!kmcdb.OpenForListing(kmc_filename)) {
@@ -505,11 +505,8 @@ void fill_mms_sketch(std::string kmc_filename, uint64_t nrows, uint64_t ncolumns
 			for(std::size_t i = 0; i < nrows; ++i)
 			{
 				std::size_t bucket_index = hashes[i] % ncolumns + i * ncolumns;
-				if(
-					inverted_index.find(cms[bucket_index]) == inverted_index.end() or 
-					inverted_index.at(cms[bucket_index]) < inverted_index.at(counter)
-				) 
-					cms[bucket_index] = counter;
+				cms[bucket_index] = std::max(cms[bucket_index], counter);
+				//if(inverted_index.find(cms[bucket_index]) == inverted_index.end() or inverted_index.at(cms[bucket_index]) < inverted_index.at(counter))
 			}
 		}
 	}

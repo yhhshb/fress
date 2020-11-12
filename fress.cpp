@@ -318,7 +318,7 @@ int mms_main(int argc, char* argv[])
 	return EXIT_SUCCESS;
 }
 
-int mmschk_main(int argc, char* argv[]) //UNUSED
+int mmschk_main(int argc, char* argv[])
 {
 	std::string kmc_filename, cms_filename;
 	uint64_t nrows, ncolumns;
@@ -346,10 +346,11 @@ int mmschk_main(int argc, char* argv[]) //UNUSED
 	}
 
 	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
-	auto sorted_histogram = sort_histogram(load_histogram(cms_filename + ".shist.txt"));
-	std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_histogram);
+	//auto sorted_histogram = sort_histogram(load_histogram(cms_filename + ".shist.txt"));
+	//std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_histogram);
 	auto setmap = load_setmap(cms_filename + ".mms", nrows, ncolumns, true);	
-	auto rvals = check_mm_sketch(kmc_filename, nrows, ncolumns, setmap, invidx);
+	//auto rvals = check_mm_sketch(kmc_filename, nrows, ncolumns, setmap, invidx);
+	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, ignored, setmap);
 	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }

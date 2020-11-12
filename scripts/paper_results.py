@@ -189,7 +189,7 @@ def run_mms_for(fastx: str, k: int, epsilon: float, args):
     L1 = int(L1)
     dim = int(dim)
     max_val = int(max_val)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path, args.g)
+    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_mmschk(kmcdb, sketch_path, args.g)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)

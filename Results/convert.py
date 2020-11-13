@@ -19,6 +19,7 @@ kmcdf = pd.read_table("kmc_pipeline.out.tsv", sep='\t', header=None)
 #cmsdf = pd.read_table("cms_pipeline.out.tsv", sep='\t', header=None)
 cmsdf = pd.read_table("cmsg.out.tsv", sep='\t', header=None)
 bbhdf = pd.read_table("bbhash_pipeline.out.tsv", sep='\t', header=None)
+mmsdf = pd.read_table("mms.out.tsv", sep='\t', header=None)
 
 sizes = pd.read_csv("datasets_info.csv")
 
@@ -28,6 +29,7 @@ infodf.columns = ["name", "epsilon", "k", "R", "B", "RB"]
 kmcdf.columns = ["name", "k", "kmc"]
 cmsdf.columns = ["name", "epsilon", "k", "cntrue", "threshold", "csod", "cavg", "cmax", "csize", "ccsize"]
 bbhdf.columns = ["name", "k", "mphfsize", "bsize", "bcsize"]
+mmsdf.columns = ["name", "epsilon", "k", "mntrue", "threshold", "msod", "mavg", "mmax", "msize", "mcsize"]
 sizes.columns = ["type", "name", "k", "L0", "L1", "Labels", "KMC"]
 
 smsdf = smsdf.drop("skew", 1)
@@ -50,6 +52,9 @@ kmcdf["name"] = kmcdf["name"].map(lambda x: "SRR622461" if x == "SRR622461_1" el
 cmsdf["name"] = cmsdf["name"].map(lambda x: "USakai" if x == "U_Sakai" else x)
 cmsdf["name"] = cmsdf["name"].map(lambda x: "SRR622461" if x == "SRR622461_1" else x)
 
+mmsdf["name"] = mmsdf["name"].map(lambda x: "USakai" if x == "U_Sakai" else x)
+mmsdf["name"] = mmsdf["name"].map(lambda x: "SRR622461" if x == "SRR622461_1" else x)
+
 bbhdf["name"] = bbhdf["name"].map(lambda x: "USakai" if x == "U_Sakai" else x)
 bbhdf["name"] = bbhdf["name"].map(lambda x: "SRR622461" if x == "SRR622461_1" else x)
 
@@ -59,6 +64,7 @@ bbhdf["name"] = bbhdf["name"].map(lambda x: "SRR622461" if x == "SRR622461_1" el
 joined = pd.merge(smsdf, infodf, on=["name", "epsilon", "k"], how="outer")
 joined = pd.merge(joined, checkdf, on=["name", "epsilon", "k"], how="outer")
 joined = pd.merge(joined, cmsdf, on=["name", "epsilon", "k", "threshold"], how="outer")
+joined = pd.merge(joined, mmsdf, on=["name", "epsilon", "k", "threshold"], how="outer")
 joined = pd.merge(joined, kmcdf, on=["name", "k"], how="outer")
 joined = pd.merge(joined, bbhdf, on=["name", "k"], how="outer")
 joined = pd.merge(joined, sizes, on=["name", "k"], how="outer")
@@ -67,10 +73,16 @@ joined["tavg"] = joined["ssod"] / joined["ntrue"]
 joined["ntrue"] = round(joined["ntrue"] / joined["L0"] * 100, 1)
 #joined["cntrue"] = round(joined["csod"] / (joined["cavg"] * joined["L0"]) * 100)
 joined["cntrue"] = round(joined["cntrue"] / joined["L0"] * 100)
+joined["mntrue"] = round(joined["mntrue"] / joined["L0"] * 100, 1)
 joined["savg"] = joined["savg"].map(lambda x: '{:.2f}'.format(x))
 joined["cavg"] = joined["cavg"].map(lambda x: '{:.2f}'.format(x))
 joined["tavg"] = joined["tavg"].map(lambda x: '{:.2f}'.format(x))
-joined = joined[["name", "epsilon", "k", "R", "B", "threshold", "ntrue", "ssod", "tavg", "smax", "cntrue", "csod", "cavg", "cmax", "kmc", "ssize", "scsize", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
-joined.to_csv("fress_all_supplementary.csv", header=True, index=False)
-joined = joined[joined.k != 8]
-joined.to_csv("fress_all.csv", header=True, index=False)
+joined["mavg"] = joined["mavg"].map(lambda x: '{:.2f}'.format(x))
+fress_all_supplementary = joined[["name", "epsilon", "k", "R", "B", "threshold", "ntrue", "ssod", "tavg", "smax", "cntrue", "csod", "cavg", "cmax", "kmc", "ssize", "scsize", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
+fress_all_supplementary.to_csv("fress_all_supplementary.csv", header=True, index=False)
+fress_all = fress_all_supplementary[joined.k != 8]
+fress_all.to_csv("fress_all.csv", header=True, index=False)
+
+maxmin_comp = joined[["name", "epsilon", "k", "threshold", "ntrue", "cntrue", "mntrue", "ssod", "csod", "msod", "tavg", "cavg", "mavg"]]
+maxmin_comp.columns = ["dataset", "epsilon", "k", "Threshold", "SM collisions", "CM collisions", "MM collisions", "SM sum", "CM sum", "MM sum", "SM avg", "CM avg", "MM avg"]
+maxmin_comp.to_csv("maxmin_comp.csv", header=True, index=False)

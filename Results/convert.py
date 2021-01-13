@@ -78,11 +78,12 @@ joined["savg"] = joined["savg"].map(lambda x: '{:.2f}'.format(x))
 joined["cavg"] = joined["cavg"].map(lambda x: '{:.2f}'.format(x))
 joined["tavg"] = joined["tavg"].map(lambda x: '{:.2f}'.format(x))
 joined["mavg"] = joined["mavg"].map(lambda x: '{:.2f}'.format(x))
-fress_all_supplementary = joined[["name", "epsilon", "k", "R", "B", "threshold", "ntrue", "ssod", "tavg", "smax", "cntrue", "csod", "cavg", "cmax", "kmc", "ssize", "scsize", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
+fress_all_supplementary = joined[["name", "epsilon", "k", "R", "B", "threshold", "ntrue", "ssod", "tavg", "smax", "cntrue", "csod", "cavg", "cmax", "mntrue", "msod", "mavg", "mmax", "kmc", "ssize", "scsize", "csize", "ccsize", "mphfsize", "bsize", "bcsize"]]
 fress_all_supplementary.to_csv("fress_all_supplementary.csv", header=True, index=False)
 fress_all = fress_all_supplementary[joined.k != 8]
 fress_all.to_csv("fress_all.csv", header=True, index=False)
 
-maxmin_comp = joined[["name", "epsilon", "k", "threshold", "ntrue", "cntrue", "mntrue", "ssod", "csod", "msod", "tavg", "cavg", "mavg"]]
-maxmin_comp.columns = ["dataset", "epsilon", "k", "Threshold", "SM collisions", "CM collisions", "MM collisions", "SM sum", "CM sum", "MM sum", "SM avg", "CM avg", "MM avg"]
-maxmin_comp.to_csv("maxmin_comp.csv", header=True, index=False)
+#Now part of fress_all table
+#maxmin_comp = joined[["name", "epsilon", "k", "threshold", "ntrue", "cntrue", "mntrue", "ssod", "csod", "msod", "tavg", "cavg", "mavg"]]
+#maxmin_comp.columns = ["dataset", "epsilon", "k", "Threshold", "SM collisions", "CM collisions", "MM collisions", "SM sum", "CM sum", "MM sum", "SM avg", "CM avg", "MM avg"]
+#maxmin_comp.to_csv("maxmin_comp.csv", header=True, index=False)

@@ -302,11 +302,11 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 	//std::size_t total_cycle_time = 0;
 	//std::size_t total_getidx_time = 0;
 	//std::size_t total_intersect_time = 0;
-	//std::size_t total_time = 0;
+	std::size_t total_time = 0;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
-		//auto start = high_resolution_clock::now();
+		auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
 		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		//auto start2 = high_resolution_clock::now();
@@ -326,7 +326,7 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 			//total_intersect_time += duration_cast<nanoseconds>(high_resolution_clock::now() - intersect_start).count(); 
 		}
 		//total_cycle_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start2).count();
-		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		++nqueries;
 		if(intersection.size() > 0)
 		{
@@ -346,12 +346,13 @@ std::vector<std::string> check_sketch(std::string kmc_filename, uint64_t nrows, 
 		}
 	}
 	kmcdb.Close();
-	std::vector<std::string> toRet(5);
+	std::vector<std::string> toRet(6);
 	toRet[0] = std::to_string(ncolls);
 	toRet[1] = std::to_string(ntrue_colls);
 	toRet[2] = std::to_string(delta_sum);
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
 	toRet[4] = std::to_string(delta_max);
+	toRet[5] = std::to_string(total_time/nqueries);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
 	std::cerr << "Total number of collisions which result in a different frequency " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
@@ -402,11 +403,11 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 	//std::size_t total_cycle_time = 0;
 	//std::size_t total_getidx_time = 0;
 	//std::size_t total_intersect_time = 0;
-	//std::size_t total_time = 0;
+	std::size_t total_time = 0;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
-		//auto start = high_resolution_clock::now();
+		auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
 		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		//auto start2 = high_resolution_clock::now();
@@ -426,7 +427,7 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 			//total_intersect_time += duration_cast<nanoseconds>(high_resolution_clock::now() - intersect_start).count(); 
 		}
 		//total_cycle_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start2).count();
-		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		++nqueries;
 		if(intersection.size() > 0)
 		{
@@ -455,12 +456,13 @@ std::vector<std::string> check_sketch_merge(std::string kmc_filename, uint64_t n
 		}
 	}
 	kmcdb.Close();
-	std::vector<std::string> toRet(5);
+	std::vector<std::string> toRet(6);
 	toRet[0] = std::to_string(ncolls);
 	toRet[1] = std::to_string(ntrue_colls);
 	toRet[2] = std::to_string(delta_sum);
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
 	toRet[4] = std::to_string(delta_max);
+	toRet[5] = std::to_string(total_time/nqueries);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
 	std::cerr << "Total number of collisions which result in a different frequency " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
@@ -549,11 +551,11 @@ std::vector<std::string> check_mm_sketch(std::string kmc_filename, uint64_t nrow
 	//std::size_t total_cycle_time = 0;
 	//std::size_t total_getidx_time = 0;
 	//std::size_t total_intersect_time = 0;
-	//std::size_t total_time = 0;
+	std::size_t total_time = 0;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
-		//auto start = high_resolution_clock::now();
+		auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
 		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		//auto start2 = high_resolution_clock::now();
@@ -567,18 +569,21 @@ std::vector<std::string> check_mm_sketch(std::string kmc_filename, uint64_t nrow
 				if(qval == 0 or inverted_index.at(cms[bucket_index]) < inverted_index.at(qval)) qval = cms[bucket_index];
 			}
 		}
+		total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		++nqueries;
 		if(qval != counter) ++ntrue_colls;
 		auto delta = static_cast<std::size_t>(std::abs(static_cast<long long>(counter) - qval));
 		delta_sum += delta;
 		if(delta_max < delta) delta_max = delta;
 	}
 	kmcdb.Close();
-	std::vector<std::string> toRet(5);
+	std::vector<std::string> toRet(6);
 	toRet[0] = std::to_string(ncolls);
 	toRet[1] = std::to_string(ntrue_colls);
 	toRet[2] = std::to_string(delta_sum);
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ntrue_colls);
 	toRet[4] = std::to_string(delta_max);
+	toRet[5] = std::to_string(total_time/nqueries);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
 	std::cerr << "Total number of collisions which result in a different frequency " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[1] << "\n";
@@ -658,11 +663,11 @@ std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrow
 	std::size_t bucket_index;
 
 	//std::size_t total_hash_time = 0;
-	//std::size_t total_time = 0;
+	std::size_t total_time = 0;
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
-		//auto start = high_resolution_clock::now();
+		auto start = high_resolution_clock::now();
 		NTM64(str_kmer, _kmer_length, nrows, hashes);
 		//total_hash_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		uint32_t minimum = std::numeric_limits<uint32_t>::max();
@@ -671,7 +676,7 @@ std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrow
 			bucket_index = hashes[i] % ncolumns + i * ncolumns;
 			if(cms.at(bucket_index) < minimum) minimum = cms.at(bucket_index); 
 		}
-		//total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 		++nqueries;
 		if(ignored != std::numeric_limits<uint32_t>::max() and minimum == 0) minimum = ignored;
 		if(minimum != counter)
@@ -683,12 +688,13 @@ std::vector<std::string> check_cm_sketch(std::string kmc_filename, uint64_t nrow
 		}
 	}
 	kmcdb.Close();
-	std::vector<std::string> toRet(5);
+	std::vector<std::string> toRet(6);
 	toRet[0] = std::to_string(ncolls);
 	toRet[1] = std::to_string(ncolls);
 	toRet[2] = std::to_string(delta_sum);
 	toRet[3] = std::to_string(static_cast<double>(delta_sum)/ncolls);
 	toRet[4] = std::to_string(delta_max);
+	toRet[5] = std::to_string(total_time/nqueries);
 	std::cerr << "Total number of collisions: " << toRet[0] << "\n";
 	std::cerr << "L1 sum of deltas: " << toRet[2] << "\n";
 	std::cerr << "Average delta: " << toRet[3] << "\n";

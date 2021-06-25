@@ -1,4 +1,6 @@
 #include <cstring>
+#include <chrono>
+
 #include "fresslib.hpp"
 
 #include "BooPHF.hpp"
@@ -134,6 +136,7 @@ int histogram_main(int argc, char* argv[])
 
 int sense_main(int argc, char* argv[])
 {
+	using namespace std::chrono;
 	std::string kmc_filename, output_filename;
 	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
 	uint64_t nrows = 0;
@@ -175,12 +178,15 @@ int sense_main(int argc, char* argv[])
 
 	std::vector<std::string> combinations;
 	std::vector<uint32_t> sketch(nrows * ncolumns, 0);
+	std::size_t construction_time;
+	auto start = high_resolution_clock::now();
 	fill_sketch_small(kmc_filename, nrows, ncolumns, sorted_hist.size() != 0 ? sorted_hist[0].first : std::numeric_limits<uint32_t>::max(), combinations, sketch);
-	
+	construction_time = duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+
 	store_histogram(output_filename + ".shist.txt", sorted_hist);
 	store_cmb(output_filename + ".cmb.txt", combinations);
 	store_setmap(output_filename + ".bin", nrows, ncolumns, sketch);
-	fprintf(stdout, "%lu %lu", L1_norm, nrows * ncolumns);//script-friendly output
+	fprintf(stdout, "%lu %lu %lu", L1_norm, nrows * ncolumns, construction_time);//script-friendly output
 	return EXIT_SUCCESS;
 }
 
@@ -231,7 +237,7 @@ int check_main(int argc, char* argv[])
 		for(std::size_t i = 0; i < merged; ++i) mcols[i] = sorted_histogram.at(i).first;
 		rvals = check_sketch_merge(kmc_filename, nrows, ncolumns, setmap, frequency_sets, invidx, mcols, freq);
 	}
-	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output	
+	fprintf(stdout, "%s %s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str(), rvals[5].c_str());//script-friendly output	
 	return EXIT_SUCCESS;
 }
 
@@ -268,6 +274,7 @@ int info_main(int argc, char* argv[])
 
 int mms_main(int argc, char* argv[])
 {
+	using namespace std::chrono;
 	std::string kmc_filename, output_filename;
 	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
 	uint64_t nrows = 0;
@@ -311,10 +318,13 @@ int mms_main(int argc, char* argv[])
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 	std::vector<uint32_t> sketch(nrows * ncolumns, 0);
 	//std::unordered_map<uint32_t, uint32_t> invidx = create_inv_index(sorted_hist);
+	std::size_t construction_time;
+	auto start = high_resolution_clock::now();
 	fill_mms_sketch(kmc_filename, nrows, ncolumns, ignored, sketch);
-	
+	construction_time = duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+
 	store_setmap(output_filename + ".mms", nrows, ncolumns, sketch);
-	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
+	fprintf(stdout, "%lu %lu %u %lu", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)), construction_time);//script-friendly output
 	return EXIT_SUCCESS;
 }
 
@@ -351,12 +361,13 @@ int mmschk_main(int argc, char* argv[])
 	auto setmap = load_setmap(cms_filename + ".mms", nrows, ncolumns, true);	
 	//auto rvals = check_mm_sketch(kmc_filename, nrows, ncolumns, setmap, invidx);
 	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, ignored, setmap);
-	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
+	fprintf(stdout, "%s %s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str(), rvals[5].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
 
 int cms_main(int argc, char* argv[])
 {
+	using namespace std::chrono;
 	std::string kmc_filename, output_filename;
 	std::vector<std::pair<uint32_t, std::size_t>> sorted_hist;
 	uint64_t nrows = 0;
@@ -399,10 +410,13 @@ int cms_main(int argc, char* argv[])
 	
 	fprintf(stderr, "Starting filling the sketch of size %lu x %lu = %lu\n", nrows, ncolumns, nrows * ncolumns);
 	std::vector<uint32_t> sketch(nrows * ncolumns, 0);//just to be explicit about the 0
+	std::size_t construction_time;
+	auto start = high_resolution_clock::now();
 	fill_cms_sketch(kmc_filename, nrows, ncolumns, ignored, sketch);
-	
+	construction_time = duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+
 	store_setmap(output_filename + ".cms", nrows, ncolumns, sketch);
-	fprintf(stdout, "%lu %lu %u", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)));//script-friendly output
+	fprintf(stdout, "%lu %lu %u %lu", L1_norm, nrows * ncolumns, *std::max_element(std::cbegin(sketch), std::cend(sketch)), construction_time);//script-friendly output
 	return EXIT_SUCCESS;
 }
 
@@ -436,12 +450,13 @@ int cmschk_main(int argc, char* argv[])
 	if(kmc_filename == "" or cms_filename == "") throw std::runtime_error("-i and -d are mandatory arguments");
 	auto setmap = load_setmap(cms_filename + ".cms", nrows, ncolumns, true);
 	auto rvals = check_cm_sketch(kmc_filename, nrows, ncolumns, ignored, setmap);
-	fprintf(stdout, "%s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str());//script-friendly output
+	fprintf(stdout, "%s %s %s %s %s %s", rvals[0].c_str(), rvals[1].c_str(), rvals[2].c_str(), rvals[3].c_str(), rvals[4].c_str(), rvals[5].c_str());//script-friendly output
 	return EXIT_SUCCESS;
 }
 
 int bbhash_main(int argc, char* argv[])
 {
+	using namespace std::chrono;
 	typedef boomphf::SingleHashFunctor<uint64_t>  hasher_t;
 	std::string kmc_filename, output_filename;
 	
@@ -474,7 +489,10 @@ int bbhash_main(int argc, char* argv[])
 	//fprintf(stderr, "k-mer length = %u, mask = %lu\n", kmcdb.KmerLength(), mask);
 	
 	KMCRangeWrapper kmcrw(kmcdb, mask);
+	std::size_t construction_time;
+	auto start = high_resolution_clock::now();
 	boomphf::mphf<uint64_t, hasher_t> *bbhash = new boomphf::mphf<uint64_t, hasher_t>(kmcdb.KmerCount(), kmcrw, 1, 1.0);
+	construction_time = duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
 
 	//saving bbhash
 	std::ofstream mphfout(output_filename + ".bbh", std::ios::binary);
@@ -488,19 +506,24 @@ int bbhash_main(int argc, char* argv[])
 	char str_kmer[kmcdb.KmerLength() + 1];
 	uint32_t counter = 0;
 	uint32_t max_counter = 0;
+	std::size_t total_time = 0;
+	std::size_t nqueries = 0;
 	kmcdb.RestartListing();
 	while(kmcdb.ReadNextKmer(kmer, counter))
 	{
 		kmer.to_string(str_kmer);
 		uint64_t packed = pack_kmer(str_kmer, kmcdb.KmerLength(), mask);
+		auto start = high_resolution_clock::now();
 		//fprintf(stderr, "packed = %lu\n", packed);
 		uint64_t index = bbhash->lookup(packed); 
 		//fprintf(stderr, "index = %lu\n", index);
 		payload[index] = counter;
+		total_time += duration_cast<nanoseconds>(high_resolution_clock::now() - start).count();
+		++nqueries;
 		if(max_counter < counter) max_counter = counter;
 	}
 	store_setmap(output_filename + ".pld", payload.size(), 1, payload);
-	fprintf(stdout, "%u %lu", max_counter, payload.size());//script-friendly output
+	fprintf(stdout, "%u %lu %lu %lu", max_counter, payload.size(), construction_time, total_time/nqueries);//script-friendly output
 	kmcdb.Close();
 	delete bbhash;
 	return EXIT_SUCCESS;

@@ -122,14 +122,16 @@ def run_sms_for(fastx: str, k: int, epsilon: float, args):
     #bin_path = os.path.join(args.f, bin_name)
     arch_path = os.path.join(args.f, arch_name)
 
-    L1, dim = run_fress_sense(kmcdb, sketch_path, epsilon)
+    L1, dim, construction_time = run_fress_sense(kmcdb, sketch_path, epsilon)
     L1 = int(L1)
     dim = int(dim)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path)
+    construction_time = int(construction_time)
+    ncolls, ntrue_colls, sod, avgd, maxd, avg_qtime = run_fress_check(kmcdb, sketch_path)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
+    avg_qtime = int(avg_qtime)
 
     #histo = pandas.read_csv(histo_path, sep='\t', header=None)
     #skewness = skew(histo.to_numpy()[:,1])
@@ -140,7 +142,7 @@ def run_sms_for(fastx: str, k: int, epsilon: float, args):
     compress(args.f, [histo_name, cmb_name, bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, construction_time, avg_qtime)
 
 def run_sms_check(fastx: str, k: int, epsilon: float, args):
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
@@ -149,12 +151,13 @@ def run_sms_check(fastx: str, k: int, epsilon: float, args):
     sketch_name = "{}k{}e{}".format(filename, k, str(epsilon).split('.')[1])
     sketch_path = os.path.join(args.f, sketch_name)
 
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_check(kmcdb, sketch_path)
+    ncolls, ntrue_colls, sod, avgd, maxd, avg_qtime = run_fress_check(kmcdb, sketch_path)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ncolls, ntrue_colls, sod, avgd, maxd)
+    avg_qtime = int(avg_qtime)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ncolls, ntrue_colls, sod, avgd, maxd, avg_qtime)
 
 def run_sms_info(fastx: str, k: int, epsilon: float, args):
     if (epsilon < 0 or epsilon > 1): raise ValueError("epsilon must be a number between 0 and 1")
@@ -185,22 +188,24 @@ def run_mms_for(fastx: str, k: int, epsilon: float, args):
     sketch_path = os.path.join(args.f, sketch_name)
     arch_path = os.path.join(args.f, arch_name)
 
-    L1, dim, max_val = run_fress_mms(kmcdb, sketch_path, epsilon, args.g)
+    L1, dim, max_val, construction_time = run_fress_mms(kmcdb, sketch_path, epsilon, args.g)
     L1 = int(L1)
     dim = int(dim)
     max_val = int(max_val)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_mmschk(kmcdb, sketch_path, args.g)
+    construction_time = int(construction_time)
+    ncolls, ntrue_colls, sod, avgd, maxd, avg_qtime = run_fress_mmschk(kmcdb, sketch_path, args.g)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
+    avg_qtime = int(avg_qtime)
 
     sys.stderr.write("number of cells = {}, max freq = {}\n".format(dim, max_val))
     theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
     compress(args.f, [bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, construction_time, avg_qtime)
 
 def run_cms_for(fastx: str, k: int, epsilon: float, args):
     """Build and check one single CM sketch
@@ -219,21 +224,23 @@ def run_cms_for(fastx: str, k: int, epsilon: float, args):
     sketch_path = os.path.join(args.f, sketch_name)
     arch_path = os.path.join(args.f, arch_name)
 
-    L1, dim, max_val = run_fress_cms(kmcdb, sketch_path, epsilon, args.g)
+    L1, dim, max_val, construction_time = run_fress_cms(kmcdb, sketch_path, epsilon, args.g)
     L1 = int(L1)
     dim = int(dim)
     max_val = int(max_val)
-    ncolls, ntrue_colls, sod, avgd, maxd = run_fress_cmschk(kmcdb, sketch_path, args.g)
+    construction_time = int(construction_time)
+    ncolls, ntrue_colls, sod, avgd, maxd, avg_qtime = run_fress_cmschk(kmcdb, sketch_path, args.g)
     ncolls = int(ncolls)
     ntrue_colls = int(ntrue_colls)
     avgd = float(avgd)
     maxd = int(maxd)
+    avg_qtime = int(avg_qtime)
 
     theoretical_udim = round(dim * math.ceil(math.log(max_val, 2)) / 8)
     compress(args.f, [bin_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, epsilon, k, ntrue_colls, round(L1 * epsilon), sod, avgd, maxd, theoretical_udim, cdim, construction_time, avg_qtime)
 
 def run_bbhash_for(fastx: str, k: int, _, args):
     """Build and check BBHash MPHF with = 1
@@ -256,16 +263,18 @@ def run_bbhash_for(fastx: str, k: int, _, args):
     mphf_path = os.path.join(args.f, mphf_name)
     arch_path = os.path.join(args.f, arch_name)
 
-    max_val, L0 = run_fress_bbhash(kmcdb, sketch_path)
+    max_val, L0, construction_time, avg_qtime = run_fress_bbhash(kmcdb, sketch_path)
     max_val = int(max_val)
     L0 = int(L0)
+    construction_time = int(construction_time)
+    avg_qtime = int(avg_qtime)
 
     mphf_size = os.stat(mphf_path).st_size
     theoretical_udim = round(L0 * math.ceil(math.log(max_val, 2)) / 8) + mphf_size
     compress(args.f, [mphf_name, payload_name], arch_path)
     cdim = os.stat(arch_path).st_size
     os.remove(arch_path)
-    return "{}\t{}\t{}\t{}\t{}".format(filename, k, mphf_size, theoretical_udim, cdim)
+    return "{}\t{}\t{}\t{}\t{}\t{}\t{}".format(filename, k, mphf_size, theoretical_udim, cdim, construction_time, avg_qtime)
 
 def run_combination(args, command):
     """Run fress for multiple parameters
@@ -280,7 +289,7 @@ def run_combination(args, command):
     #fress_outdir = args.f
     #tmpdir = args.w
     #max_mem = args.m
-    with open(args.o, "w") as oh:
+    with open(args.o, "a") as oh:
         with open(args.file, "r") as dh:
             for line in dh:
                 blocks = [block.replace(' ', '').strip() for block in line.split("[")]
